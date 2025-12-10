@@ -9,15 +9,25 @@
 #define FAN_BUTTON    P5
 #define FEEDER_BUTTON P6
 
-#define PCF8574_ADDRESS_1 0x20 
+#define GATE_RELAY    P0
+#define PUMP_RELAY    P1
+#define FAN_RELAY     P2
+
+#define PCF8574_ADDRESS_1 0x20
+#define PCF8574_ADDRESS_2 0x21
 
 PCF8574 pcf1(PCF8574_ADDRESS_1);
+PCF8574 pcf2(PCF8574_ADDRESS_2);
 
 byte button_state = 0b01111111; // Only use 7 bit
 byte last_button_state = 0b01111111; // Only use 7 bit
 
+byte actuator_state = 0b00000111; // Only use 3 bit for now
+byte last_actuator_state = 0b00000111; // Only use 3 bit for now
+
 void read_button_state (void);
 void check_button_state_change (void);
+void check_relay_state_change (void);
 
 void setup() {
   Serial.begin(115200);
@@ -31,12 +41,24 @@ void setup() {
   pcf1.pinMode(FAN_BUTTON, INPUT);
   pcf1.pinMode(FEEDER_BUTTON, INPUT);
 
+  pcf2.pinMode(GATE_RELAY, OUTPUT);
+  pcf2.pinMode(PUMP_RELAY, OUTPUT);
+  pcf2.pinMode(FAN_RELAY, OUTPUT);
+  
   if (!pcf1.begin()) {
-    Serial.println(F("ERROR: Could not initialize PCF8574! Check wiring, I2C address, SDA/SCL connections and power."));
+    Serial.println(F("ERROR: Could not initialize PCF8574(A)! Check wiring, I2C address, SDA/SCL connections and power."));
+    while (1) delay(100);
+  }
+  if (!pcf2.begin()) {
+    Serial.println(F("ERROR: Could not initialize PCF8574(B)! Check wiring, I2C address, SDA/SCL connections and power."));
     while (1) delay(100);
   }
 
-  Serial.println(F("PCF8574 initialized successfully."));
+  pcf2.digitalWrite(GATE_RELAY, HIGH);
+  pcf2.digitalWrite(PUMP_RELAY, HIGH);
+  pcf2.digitalWrite(FAN_RELAY, HIGH);
+
+  Serial.println(F("PCF8574s initialized successfully."));
   delay(500);
   Serial.println(F("Try to tap the buttons."));
 }
@@ -44,6 +66,7 @@ void setup() {
 void loop() {
   read_button_state();
   check_button_state_change();
+  check_relay_state_change();
   delay(50);
 }
 
@@ -120,6 +143,13 @@ void check_button_state_change(void) {
     if ((button_state & _BV(GATE_BUTTON)) != (last_button_state & _BV(GATE_BUTTON))) {
       if (!(button_state & _BV(GATE_BUTTON))) {
         Serial.println(F("Gate Button Pressed."));
+        if (actuator_state & _BV(GATE_RELAY)) {
+          actuator_state &= ~_BV(GATE_RELAY);
+          pcf2.digitalWrite(GATE_RELAY, LOW);
+        } else {
+          actuator_state |= _BV(GATE_RELAY);
+          pcf2.digitalWrite(GATE_RELAY, HIGH);
+        }
       } else {
         Serial.println(F("Gate Button Released."));
       }
@@ -128,6 +158,13 @@ void check_button_state_change(void) {
     if ((button_state & _BV(PUMP_BUTTON)) != (last_button_state & _BV(PUMP_BUTTON))) {
       if (!(button_state & _BV(PUMP_BUTTON))) {
         Serial.println(F("Pump Button Pressed."));
+        if (actuator_state & _BV(PUMP_RELAY)) {
+          actuator_state &= ~_BV(PUMP_RELAY);
+          pcf2.digitalWrite(PUMP_RELAY, LOW);
+        } else {
+          actuator_state |= _BV(PUMP_RELAY);
+          pcf2.digitalWrite(PUMP_RELAY, HIGH);
+        }
       } else {
         Serial.println(F("Pump Button Released."));
       }
@@ -136,6 +173,13 @@ void check_button_state_change(void) {
     if ((button_state & _BV(FAN_BUTTON)) != (last_button_state & _BV(FAN_BUTTON))) {
       if (!(button_state & _BV(FAN_BUTTON))) {
         Serial.println(F("Fan Button Pressed."));
+        if (actuator_state & _BV(FAN_RELAY)) {
+          actuator_state &= ~_BV(FAN_RELAY);
+          pcf2.digitalWrite(FAN_RELAY, LOW);
+        } else {
+          actuator_state |= _BV(FAN_RELAY);
+          pcf2.digitalWrite(FAN_RELAY, HIGH);
+        }
       } else {
         Serial.println(F("Fan Button Released."));
       }
@@ -149,7 +193,43 @@ void check_button_state_change(void) {
       }
     }
 
-    Serial.println(button_state);
     last_button_state = button_state;
+  }
+}
+
+void check_relay_state_change (void) {
+  if (actuator_state != last_actuator_state) {
+    if ((actuator_state & _BV(GATE_RELAY)) != (last_actuator_state & _BV(GATE_RELAY))) {
+      if (!(actuator_state & _BV(GATE_RELAY))) {
+        pcf2.digitalWrite(GATE_RELAY, LOW);
+        Serial.println(F("Gate Relay ON."));
+      } else {
+        pcf2.digitalWrite(GATE_RELAY, HIGH);
+        Serial.println(F("Gate Relay OFF."));
+      }
+    }
+
+    if ((actuator_state & _BV(PUMP_RELAY)) != (last_actuator_state & _BV(PUMP_RELAY))) {
+      if (!(actuator_state & _BV(PUMP_RELAY))) {
+        pcf2.digitalWrite(PUMP_RELAY, LOW);
+        Serial.println(F("Pump Relay ON."));
+      } else {
+        pcf2.digitalWrite(PUMP_RELAY, HIGH);
+        Serial.println(F("Pump Relay OFF."));
+      }
+    }
+
+    if ((actuator_state & _BV(FAN_RELAY)) != (last_actuator_state & _BV(FAN_RELAY))) {
+      if (!(actuator_state & _BV(FAN_RELAY))) {
+        pcf2.digitalWrite(FAN_RELAY, LOW);
+        Serial.println(F("Fan Relay ON."));
+      } else {
+        pcf2.digitalWrite(FAN_RELAY, HIGH);
+        Serial.println(F("Fan Relay OFF."));
+      }
+    }
+
+    Serial.println(actuator_state);
+    last_actuator_state = actuator_state;
   }
 }

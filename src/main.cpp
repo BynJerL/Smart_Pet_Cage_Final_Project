@@ -1,5 +1,8 @@
 #include <Arduino.h>
 #include <PCF8574.h>
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <HTTPClient.h>
 
 #define L_BUTTON      P0
 #define C_BUTTON      P1
@@ -24,6 +27,11 @@ byte last_button_state = 0b01111111; // Only use 7 bit
 
 byte actuator_state = 0b00000111; // Only use 3 bit for now
 byte last_actuator_state = 0b00000111; // Only use 3 bit for now
+
+WiFiClientSecure fbClient;
+HTTPClient http;
+bool firebaseReady = false;
+unsigned long lastFirebaseConnect = 0;
 
 void read_button_state (void);
 void check_button_state_change (void);
@@ -145,10 +153,8 @@ void check_button_state_change(void) {
         Serial.println(F("Gate Button Pressed."));
         if (actuator_state & _BV(GATE_RELAY)) {
           actuator_state &= ~_BV(GATE_RELAY);
-          pcf2.digitalWrite(GATE_RELAY, LOW);
         } else {
           actuator_state |= _BV(GATE_RELAY);
-          pcf2.digitalWrite(GATE_RELAY, HIGH);
         }
       } else {
         Serial.println(F("Gate Button Released."));
@@ -160,10 +166,8 @@ void check_button_state_change(void) {
         Serial.println(F("Pump Button Pressed."));
         if (actuator_state & _BV(PUMP_RELAY)) {
           actuator_state &= ~_BV(PUMP_RELAY);
-          pcf2.digitalWrite(PUMP_RELAY, LOW);
         } else {
           actuator_state |= _BV(PUMP_RELAY);
-          pcf2.digitalWrite(PUMP_RELAY, HIGH);
         }
       } else {
         Serial.println(F("Pump Button Released."));
@@ -175,10 +179,8 @@ void check_button_state_change(void) {
         Serial.println(F("Fan Button Pressed."));
         if (actuator_state & _BV(FAN_RELAY)) {
           actuator_state &= ~_BV(FAN_RELAY);
-          pcf2.digitalWrite(FAN_RELAY, LOW);
         } else {
           actuator_state |= _BV(FAN_RELAY);
-          pcf2.digitalWrite(FAN_RELAY, HIGH);
         }
       } else {
         Serial.println(F("Fan Button Released."));

@@ -3,6 +3,7 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
+#include <myconfig.h>
 
 #define L_BUTTON      P0
 #define C_BUTTON      P1
@@ -36,6 +37,8 @@ unsigned long lastFirebaseConnect = 0;
 void read_button_state (void);
 void check_button_state_change (void);
 void check_relay_state_change (void);
+
+void connect_to_wifi(void);
 
 void setup() {
   Serial.begin(115200);
@@ -234,4 +237,16 @@ void check_relay_state_change (void) {
     Serial.println(actuator_state);
     last_actuator_state = actuator_state;
   }
+}
+
+void connect_to_wifi (void) {
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  Serial.print("Connecting to WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(300);
+    Serial.print(".");
+  }
+  Serial.println("\nWiFi connected");
+
+  fbClient.setInsecure();
 }

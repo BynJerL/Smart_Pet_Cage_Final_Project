@@ -23,6 +23,21 @@
 PCF8574 pcf1(PCF8574_ADDRESS_1);
 PCF8574 pcf2(PCF8574_ADDRESS_2);
 
+enum PendingActionType {
+  NONE = 0,
+  CLEAR_COMMAND,
+  SEND_STATUS
+};
+
+struct PendingAction {
+  PendingActionType type = NONE;
+  String key;     // Firebase command key
+  String body;    // Status JSON
+  int retries = 0;
+};
+
+PendingAction pendingAction;
+
 byte button_state = 0b01111111; // Only use 7 bit
 byte last_button_state = 0b01111111; // Only use 7 bit
 

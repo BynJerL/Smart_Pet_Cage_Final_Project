@@ -39,6 +39,7 @@ void check_button_state_change (void);
 void check_relay_state_change (void);
 
 void connect_to_wifi(void);
+bool ensure_firebase_connection(const String& url);
 
 void setup() {
   Serial.begin(115200);
@@ -249,4 +250,15 @@ void connect_to_wifi (void) {
   Serial.println("\nWiFi connected");
 
   fbClient.setInsecure();
+}
+
+bool ensure_firebase_connection(const String& url) {
+  if (!http.begin(fbClient, url)) {
+    Serial.println("[FB] begin() failed");
+    return false;
+  }
+  http.useHTTP10(false);
+  http.setReuse(true);
+  http.setTimeout(5000);
+  return true;
 }

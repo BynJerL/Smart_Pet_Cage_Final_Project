@@ -99,8 +99,10 @@ void setup() {
 
 void loop() {
   read_button_state();
+  fetch_relay_command();
   check_button_state_change();
   check_relay_state_change();
+  perform_pending_firebase_actions();
   delay(50);
 }
 

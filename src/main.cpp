@@ -93,6 +93,7 @@ void setup() {
 
   Serial.println(F("PCF8574s initialized successfully."));
   delay(500);
+  connect_to_wifi();
   Serial.println(F("Try to tap the buttons."));
 }
 

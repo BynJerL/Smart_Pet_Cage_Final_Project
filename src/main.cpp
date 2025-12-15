@@ -49,6 +49,8 @@ HTTPClient http;
 bool firebaseReady = false;
 unsigned long lastFirebaseConnect = 0;
 
+void initialize_buttons (void);
+void initialize_relays (void);
 void read_button_state (void);
 void check_button_state_change (void);
 void check_relay_state_change (void);
@@ -66,32 +68,10 @@ void setup() {
   Serial.begin(115200);
   Serial.println("Initializing peripheral");
 
-  pcf1.pinMode(L_BUTTON, INPUT);
-  pcf1.pinMode(C_BUTTON, INPUT);
-  pcf1.pinMode(R_BUTTON, INPUT);
-  pcf1.pinMode(GATE_BUTTON, INPUT);
-  pcf1.pinMode(PUMP_BUTTON, INPUT);
-  pcf1.pinMode(FAN_BUTTON, INPUT);
-  pcf1.pinMode(FEEDER_BUTTON, INPUT);
+  initialize_buttons();
+  initialize_relays();
 
-  pcf2.pinMode(GATE_RELAY, OUTPUT);
-  pcf2.pinMode(PUMP_RELAY, OUTPUT);
-  pcf2.pinMode(FAN_RELAY, OUTPUT);
-  
-  if (!pcf1.begin()) {
-    Serial.println(F("ERROR: Could not initialize PCF8574(A)! Check wiring, I2C address, SDA/SCL connections and power."));
-    while (1) delay(100);
-  }
-  if (!pcf2.begin()) {
-    Serial.println(F("ERROR: Could not initialize PCF8574(B)! Check wiring, I2C address, SDA/SCL connections and power."));
-    while (1) delay(100);
-  }
-
-  pcf2.digitalWrite(GATE_RELAY, HIGH);
-  pcf2.digitalWrite(PUMP_RELAY, HIGH);
-  pcf2.digitalWrite(FAN_RELAY, HIGH);
-
-  Serial.println(F("PCF8574s initialized successfully."));
+  Serial.println(F("All PCF8574s has been initialized successfully."));
   delay(500);
   connect_to_wifi();
   Serial.println(F("Try to tap the buttons."));
@@ -104,6 +84,40 @@ void loop() {
   check_relay_state_change();
   perform_pending_firebase_actions();
   delay(50);
+}
+
+void initialize_buttons (void) {
+  pcf1.pinMode(L_BUTTON, INPUT);
+  pcf1.pinMode(C_BUTTON, INPUT);
+  pcf1.pinMode(R_BUTTON, INPUT);
+  pcf1.pinMode(GATE_BUTTON, INPUT);
+  pcf1.pinMode(PUMP_BUTTON, INPUT);
+  pcf1.pinMode(FAN_BUTTON, INPUT);
+  pcf1.pinMode(FEEDER_BUTTON, INPUT);
+
+  if (!pcf1.begin()) {
+    Serial.println(F("ERROR: Could not initialize buttons\' PCF8574! Check wiring, I2C address, SDA/SCL connections and power."));
+    while (1) delay(100);
+  }
+  Serial.println(F("buttons\' PCF8574 initialized successfully."));
+}
+
+void initialize_relays (void) {
+  pcf2.pinMode(GATE_RELAY, OUTPUT);
+  pcf2.pinMode(PUMP_RELAY, OUTPUT);
+  pcf2.pinMode(FAN_RELAY, OUTPUT);
+
+  if (!pcf2.begin()) {
+    Serial.println(F("ERROR: Could not initialize relays\' PCF8574! Check wiring, I2C address, SDA/SCL connections and power."));
+    while (1) delay(100);
+  }
+
+  // Set relay state to low on beginning.
+  pcf2.digitalWrite(GATE_RELAY, HIGH);
+  pcf2.digitalWrite(PUMP_RELAY, HIGH);
+  pcf2.digitalWrite(FAN_RELAY, HIGH);
+
+  Serial.println(F("relays\' PCF8574 initialized successfully."));
 }
 
 void read_button_state(void) {

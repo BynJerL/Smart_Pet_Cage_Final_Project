@@ -53,6 +53,12 @@ void read_button_state (void);
 void check_button_state_change (void);
 void check_relay_state_change (void);
 
+void fetch_relay_command (void);
+void process_relay_command (const String& key, const String& target, const String& action);
+void clear_relay_command ();
+void queue_status_update (const String& action);
+void perform_pending_firebase_actions ();
+
 void connect_to_wifi(void);
 bool ensure_firebase_connection(const String& url);
 
@@ -276,4 +282,119 @@ bool ensure_firebase_connection(const String& url) {
   http.setReuse(true);
   http.setTimeout(5000);
   return true;
+}
+
+void fetch_relay_command (void) {
+  if (WiFi.status() != WL_CONNECTED) return;
+  if (pendingAction.type != NONE) return; // busy
+
+  String url = FIREBASE_URL + String("/commands");
+  url += ".json?orderBy=\"$key\"&limitToLast=1";
+
+  if (!ensure_firebase_connection(url)) return;
+
+  int code = http.GET();
+  if (code != 200) {
+    http.end();
+    return;
+  }
+
+  String payload = http.getString();
+  http.end();
+
+  if (payload == "{}") return;
+
+  // --- extract key ---
+  int k1 = payload.indexOf("\"");
+  int k2 = payload.indexOf("\"", k1 + 1);
+  String key = payload.substring(k1 + 1, k2);
+
+  // --- extract target ---
+  int t1 = payload.indexOf("\"target\"");
+  int t2 = payload.indexOf("\"", t1 + 8);
+  int t3 = payload.indexOf("\"", t2 + 1);
+  String target = payload.substring(t2 + 1, t3);
+
+  // --- extract action ---
+  int a1 = payload.indexOf("\"action\"");
+  int a2 = payload.indexOf("\"", a1 + 8);
+  int a3 = payload.indexOf("\"", a2 + 1);
+  String action = payload.substring(a2 + 1, a3);
+
+  process_relay_command(key, target, action);
+}
+
+void process_relay_command (const String& key, const String& target, const String& action) {
+  uint8_t bit;
+
+  if (target == "gate") bit = _BV(GATE_RELAY);
+  else if (target == "pump") bit = _BV(PUMP_RELAY);
+  else if (target == "fan") bit = _BV(FAN_RELAY);
+  else return;
+
+  if (action == "toggle") {
+    actuator_state ^= bit;
+  } else if (action == "on") {
+    actuator_state &= ~bit;   // active LOW
+  } else if (action == "off") {
+    actuator_state |= bit;
+  } else {
+    return;
+  }
+
+  Serial.printf("[CMD] %s %s\n", target.c_str(), action.c_str());
+
+  pendingAction.type = CLEAR_COMMAND;
+  pendingAction.key = key;
+  pendingAction.retries = 0;
+
+  queue_status_update(target + "_" + action);
+}
+
+void clear_relay_command () {
+  String base = FIREBASE_URL + String("/commands");
+  if (base.endsWith(".json"))
+    base.remove(base.length() - 5);
+
+  String url = base + "/" + pendingAction.key + ".json";
+
+  if (!ensure_firebase_connection(url)) return;
+
+  http.sendRequest("DELETE", "");
+  http.end();
+}
+
+void queue_status_update (const String& action) {
+  String body = "{";
+  body += "\"gate\":" + String(!(actuator_state & _BV(GATE_RELAY)) ? "true":"false") + ",";
+  body += "\"pump\":" + String(!(actuator_state & _BV(PUMP_RELAY)) ? "true":"false") + ",";
+  body += "\"fan\":"  + String(!(actuator_state & _BV(FAN_RELAY))  ? "true":"false") + ",";
+  body += "\"last_action\":\"" + action + "\",";
+  body += "\"ts\":" + String(millis() / 1000);
+  body += "}";
+
+  pendingAction.body = body;
+}
+
+void perform_pending_firebase_actions () {
+  if (pendingAction.type == NONE) return;
+
+  if (pendingAction.type == CLEAR_COMMAND) {
+    clear_relay_command();
+    pendingAction.type = SEND_STATUS;
+    return;
+  }
+
+  if (pendingAction.type == SEND_STATUS) {
+    String url = FIREBASE_URL + String("status");
+    if (!url.endsWith(".json")) url += ".json";
+
+    if (!ensure_firebase_connection(url)) return;
+
+    http.addHeader("Content-Type", "application/json");
+    http.PATCH(pendingAction.body);
+    http.end();
+
+    pendingAction = {}; // reset
+  }
 }

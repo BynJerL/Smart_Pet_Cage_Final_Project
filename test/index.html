@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Smart Control Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #0f172a;
+    color: #e5e7eb;
+    padding: 20px;
+  }
+  .card {
+    background: #1e293b;
+    padding: 16px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+  }
+  button {
+    margin: 4px;
+    padding: 10px 14px;
+    border: none;
+    border-radius: 6px;
+    background: #2563eb;
+    color: white;
+    cursor: pointer;
+  }
+  button:hover { background: #1d4ed8; }
+
+  .on { color: #22c55e; }
+  .off { color: #ef4444; }
+  .small { font-size: 0.9em; color: #94a3b8; }
+</style>
+</head>
+
+<body>
+
+<h1>Smart Pet Cage Dashboard</h1>
+
+<div class="card">
+  <h2>Send Command</h2>
+  <button onclick="sendCommand('gate','toggle')">Toggle Gate</button>
+  <button onclick="sendCommand('pump','on')">Pump ON</button>
+  <button onclick="sendCommand('pump','off')">Pump OFF</button>
+  <button onclick="sendCommand('fan','on')">Fan ON</button>
+  <button onclick="sendCommand('fan','off')">Fan OFF</button>
+</div>
+
+<div class="card">
+  <h2>Status</h2>
+  <div>Gate: <span id="gate">---</span></div>
+  <div>Pump: <span id="pump">---</span></div>
+  <div>Fan: <span id="fan">---</span></div>
+  <div class="small">Last Action: <span id="last_action">---</span></div>
+  <div class="small">Timestamp: <span id="ts">---</span></div>
+</div>
+
+<script>
+let FIREBASE_URL = "";
+let POLL_INTERVAL = 2000;
+
+/* =============================
+   LOAD CONFIG
+============================= */
+fetch("config.json")
+  .then(res => res.json())
+  .then(cfg => {
+    FIREBASE_URL = cfg.firebase_url;
+    POLL_INTERVAL = cfg.poll_interval_ms || 2000;
+    startStatusPolling();
+  })
+  .catch(err => {
+    alert("Failed to load config.json");
+    console.error(err);
+  });
+
+/* =============================
+   SEND COMMAND (QUEUE)
+============================= */
+function sendCommand(target, action) {
+  fetch(`${FIREBASE_URL}/commands.json`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ target, action })
+  })
+  .then(res => res.json())
+  .then(data => {
+    console.log("Command queued:", data.name);
+  })
+  .catch(err => console.error("Command failed:", err));
+}
+
+/* =============================
+   POLL STATUS
+============================= */
+function startStatusPolling() {
+  setInterval(fetchStatus, POLL_INTERVAL);
+  fetchStatus();
+}
+
+function fetchStatus() {
+  fetch(`${FIREBASE_URL}/status.json`)
+    .then(res => res.json())
+    .then(updateStatus)
+    .catch(err => console.error("Status fetch failed:", err));
+}
+
+function updateStatus(data) {
+  if (!data) return;
+
+  setBool("gate", data.gate);
+  setBool("pump", data.pump);
+  setBool("fan", data.fan);
+
+  document.getElementById("last_action").textContent = data.last_action || "-";
+  document.getElementById("ts").textContent =
+    data.ts ? new Date(data.ts * 1000).toLocaleString() : "-";
+}
+
+function setBool(id, val) {
+  const el = document.getElementById(id);
+  if (val === true) {
+    el.textContent = "ON";
+    el.className = "on";
+  } else if (val === false) {
+    el.textContent = "OFF";
+    el.className = "off";
+  } else {
+    el.textContent = "---";
+    el.className = "";
+  }
+}
+</script>
+
+</body>
+</html>

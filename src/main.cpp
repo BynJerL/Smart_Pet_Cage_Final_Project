@@ -54,6 +54,7 @@ void initialize_relays (void);
 void read_button_state (void);
 void check_button_state_change (void);
 void check_relay_state_change (void);
+void check_serial_command (void);
 
 void fetch_relay_command (void);
 void process_relay_command (const String& key, const String& target, const String& action);
@@ -81,6 +82,7 @@ void loop() {
   read_button_state();
   fetch_relay_command();
   check_button_state_change();
+  check_serial_command();
   check_relay_state_change();
   perform_pending_firebase_actions();
   delay(50);
@@ -275,6 +277,54 @@ void check_relay_state_change (void) {
 
     Serial.println(actuator_state);
     last_actuator_state = actuator_state;
+  }
+}
+
+void check_serial_command (void) {
+  while (Serial.available() > 0) {
+    char cmd = Serial.read();
+
+    switch (cmd) {
+      case '1': 
+        if (actuator_state & _BV(GATE_RELAY)) {
+          actuator_state &= ~_BV(GATE_RELAY);
+        } else {
+          actuator_state |= _BV(GATE_RELAY);
+        }
+        break;
+      case '2':
+        if (actuator_state & _BV(PUMP_RELAY)) {
+          actuator_state &= ~_BV(PUMP_RELAY);
+        } else {
+          actuator_state |= _BV(PUMP_RELAY);
+        }
+        break;
+      case '3':
+        if (actuator_state & _BV(FAN_RELAY)) {
+          actuator_state &= ~_BV(FAN_RELAY);
+        } else {
+          actuator_state |= _BV(FAN_RELAY);
+        }
+        break;
+      case 'q':
+      case 'Q':
+        actuator_state &= ~_BV(GATE_RELAY); break;
+      case 'w':
+      case 'W':
+        actuator_state |= _BV(GATE_RELAY); break;
+      case 'e':
+      case 'E':
+        actuator_state &= ~_BV(PUMP_RELAY); break;
+      case 'r':
+      case 'R':
+        actuator_state |= _BV(PUMP_RELAY); break;
+      case 't':
+      case 'T':
+        actuator_state &= ~_BV(FAN_RELAY); break;
+      case 'y':
+      case 'Y':
+        actuator_state |= _BV(FAN_RELAY); break;
+    }
   }
 }
 

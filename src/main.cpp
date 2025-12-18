@@ -403,7 +403,7 @@ void perform_pending_firebase_actions () {
   }
 
   if (pendingAction.type == SEND_STATUS) {
-    String url = FIREBASE_URL + String("status");
+    String url = FIREBASE_URL + String("/status");
     if (!url.endsWith(".json")) url += ".json";
 
     if (!ensure_firebase_connection(url)) return;

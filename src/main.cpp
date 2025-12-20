@@ -4,6 +4,9 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <myconfig.h>
+#include <WiFiUdp.h>
+#include <NTPClient.h>
+#include <time.h>
 
 #define L_BUTTON      P0
 #define C_BUTTON      P1

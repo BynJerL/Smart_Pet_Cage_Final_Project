@@ -23,6 +23,9 @@
 #define PCF8574_ADDRESS_1 0x20
 #define PCF8574_ADDRESS_2 0x21
 
+#define TIMEZONE_OFFSET_SEC (7 * 3600)
+#define NTP_SYNC_INTERVAL (6UL * 60UL * 60UL * 1000UL)
+
 PCF8574 pcf1(PCF8574_ADDRESS_1);
 PCF8574 pcf2(PCF8574_ADDRESS_2);
 
@@ -51,6 +54,20 @@ WiFiClientSecure fbClient;
 HTTPClient http;
 bool firebaseReady = false;
 unsigned long lastFirebaseConnect = 0;
+
+WiFiUDP ntpUDP;
+NTPClient ntpClient(
+  ntpUDP,
+  "pool.ntp.org",
+  TIMEZONE_OFFSET_SEC,
+  60 * 1000
+);
+
+static unsigned long cachedEpoch = 0;
+static unsigned long cachedMillis = 0;
+static bool timeValid = false;
+
+static unsigned long lastNtpSync = 0;
 
 void initialize_buttons (void);
 void initialize_relays (void);

@@ -102,16 +102,26 @@ void setup() {
   Serial.println(F("All PCF8574s has been initialized successfully."));
   delay(500);
   connect_to_wifi();
+  time_init();
   Serial.println(F("Try to tap the buttons."));
 }
 
 void loop() {
   read_button_state();
-  fetch_relay_command();
   check_button_state_change();
   check_serial_command();
   check_relay_state_change();
+  time_loop();
+  fetch_relay_command();
   perform_pending_firebase_actions();
+
+  // Temp Code
+  static unsigned long tPrint = 0;
+  if (millis() - tPrint > 5000) {
+    tPrint = millis();
+    Serial.println(time_now_string());
+  }
+
   delay(50);
 }
 

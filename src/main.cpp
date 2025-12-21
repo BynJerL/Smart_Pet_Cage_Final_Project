@@ -85,7 +85,12 @@ void perform_pending_firebase_actions ();
 void connect_to_wifi(void);
 bool ensure_firebase_connection(const String& url);
 
-void time_init(void);
+void time_init (void);
+void time_loop (void);
+unsigned long time_now_epoch (void);
+String time_now_hhmm (void);
+String time_now_string (void);
+bool time_is_valid (void);
 
 void setup() {
   Serial.begin(115200);
@@ -505,4 +510,61 @@ void time_init(void) {
   } else {
     Serial.println("[TIME] NTP sync failed");
   }
+}
+
+void time_loop(void) {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  if (!timeValid || millis() - lastNtpSync > NTP_SYNC_INTERVAL) {
+    if (ntpClient.forceUpdate()) {
+      cachedEpoch = ntpClient.getEpochTime();
+      cachedMillis = millis();
+      timeValid = true;
+      lastNtpSync = millis();
+
+      Serial.println("[TIME] NTP re-sync");
+    }
+  }
+}
+
+unsigned long time_now_epoch(void) {
+  if (!timeValid) return 0;
+  return cachedEpoch + ((millis() - cachedMillis) / 1000);
+}
+
+String time_now_hhmm(void) {
+  if (!timeValid) return "";
+
+  time_t t = time_now_epoch();
+  struct tm tm;
+  localtime_r(&t, &tm);
+
+  char buf[6];
+  snprintf(buf, sizeof(buf), "%02d:%02d", tm.tm_hour, tm.tm_min);
+  return String(buf);
+}
+
+String time_now_string(void) {
+  if (!timeValid) return "invalid";
+
+  time_t t = time_now_epoch();
+  struct tm tm;
+  localtime_r(&t, &tm);
+
+  char buf[24];
+  snprintf(
+    buf, sizeof(buf),
+    "%04d-%02d-%02d %02d:%02d:%02d",
+    tm.tm_year + 1900,
+    tm.tm_mon + 1,
+    tm.tm_mday,
+    tm.tm_hour,
+    tm.tm_min,
+    tm.tm_sec
+  );
+  return String(buf);
+}
+
+bool time_is_valid(void) {
+  return timeValid;
 }

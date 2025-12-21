@@ -85,6 +85,8 @@ void perform_pending_firebase_actions ();
 void connect_to_wifi(void);
 bool ensure_firebase_connection(const String& url);
 
+void time_init(void);
+
 void setup() {
   Serial.begin(115200);
   Serial.println("Initializing peripheral");
@@ -483,5 +485,24 @@ void perform_pending_firebase_actions () {
     http.end();
 
     pendingAction = {}; // reset
+  }
+}
+
+void time_init(void) {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("[TIME] WiFi not ready, NTP delayed");
+    return;
+  }
+
+  ntpClient.begin();
+
+  if (ntpClient.forceUpdate()) {
+    cachedEpoch = ntpClient.getEpochTime();
+    cachedMillis = millis();
+    timeValid = true;
+    lastNtpSync = millis();
+    Serial.println("[TIME] NTP sync OK");
+  } else {
+    Serial.println("[TIME] NTP sync failed");
   }
 }

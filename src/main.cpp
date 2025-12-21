@@ -474,7 +474,7 @@ void queue_status_update (const String& action) {
   body += "\"pump\":" + String(!(actuator_state & _BV(PUMP_RELAY)) ? "true":"false") + ",";
   body += "\"fan\":"  + String(!(actuator_state & _BV(FAN_RELAY))  ? "true":"false") + ",";
   body += "\"last_action\":\"" + action + "\",";
-  body += "\"ts\":" + String(millis() / 1000);
+  body += "\"ts\":" + String(time_now_epoch());
   body += "}";
 
   pendingAction.body = body;

@@ -237,6 +237,7 @@ void check_button_state_change(void) {
         } else {
           actuator_state |= _BV(GATE_RELAY);
         }
+        queue_status_update("gate_manual");
       } else {
         Serial.println(F("Gate Button Released."));
       }
@@ -250,6 +251,7 @@ void check_button_state_change(void) {
         } else {
           actuator_state |= _BV(PUMP_RELAY);
         }
+        queue_status_update("pump_manual");
       } else {
         Serial.println(F("Pump Button Released."));
       }
@@ -263,6 +265,7 @@ void check_button_state_change(void) {
         } else {
           actuator_state |= _BV(FAN_RELAY);
         }
+        queue_status_update("fan_manual");
       } else {
         Serial.println(F("Fan Button Released."));
       }
@@ -277,6 +280,7 @@ void check_button_state_change(void) {
     }
 
     last_button_state = button_state;
+    pendingAction.type = SEND_STATUS;
   }
 }
 
@@ -328,6 +332,7 @@ void check_serial_command (void) {
         } else {
           actuator_state |= _BV(GATE_RELAY);
         }
+        queue_status_update("gate_serial_toggle");
         break;
       case '2':
         if (actuator_state & _BV(PUMP_RELAY)) {
@@ -335,6 +340,7 @@ void check_serial_command (void) {
         } else {
           actuator_state |= _BV(PUMP_RELAY);
         }
+        queue_status_update("pump_serial_toggle");
         break;
       case '3':
         if (actuator_state & _BV(FAN_RELAY)) {
@@ -342,26 +348,40 @@ void check_serial_command (void) {
         } else {
           actuator_state |= _BV(FAN_RELAY);
         }
+        queue_status_update("fan_serial_toggle");
         break;
       case 'q':
       case 'Q':
-        actuator_state &= ~_BV(GATE_RELAY); break;
+        actuator_state &= ~_BV(GATE_RELAY); 
+        queue_status_update("gate_serial_on");
+        break;
       case 'w':
       case 'W':
-        actuator_state |= _BV(GATE_RELAY); break;
+        actuator_state |= _BV(GATE_RELAY); 
+        queue_status_update("gate_serial_off");
+        break;
       case 'e':
       case 'E':
-        actuator_state &= ~_BV(PUMP_RELAY); break;
+        actuator_state &= ~_BV(PUMP_RELAY); 
+        queue_status_update("pump_serial_on");
+        break;
       case 'r':
       case 'R':
-        actuator_state |= _BV(PUMP_RELAY); break;
+        actuator_state |= _BV(PUMP_RELAY); 
+        queue_status_update("pump_serial_off");
+        break;
       case 't':
       case 'T':
-        actuator_state &= ~_BV(FAN_RELAY); break;
+        actuator_state &= ~_BV(FAN_RELAY); 
+        queue_status_update("fan_serial_on");
+        break;
       case 'y':
       case 'Y':
-        actuator_state |= _BV(FAN_RELAY); break;
+        actuator_state |= _BV(FAN_RELAY); 
+        queue_status_update("fan_serial_off");
+        break;
     }
+    pendingAction.type = SEND_STATUS;
   }
 }
 

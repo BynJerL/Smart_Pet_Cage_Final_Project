@@ -116,7 +116,7 @@ function updateStatus(data) {
 
   document.getElementById("last_action").textContent = data.last_action || "-";
   document.getElementById("ts").textContent =
-    data.ts ? new Date(data.ts * 1000).toLocaleString() : "-";
+    data.ts ? formatGMT7(data.ts) : "-";
 }
 
 function setBool(id, val) {
@@ -132,6 +132,13 @@ function setBool(id, val) {
     el.className = "";
   }
 }
+
+function formatGMT7(unixSeconds) {
+  if (!unixSeconds) return "-";
+  const date = new Date((unixSeconds + 7 * 3600) * 1000);
+  return date.toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
+}
+
 </script>
 
 </body>

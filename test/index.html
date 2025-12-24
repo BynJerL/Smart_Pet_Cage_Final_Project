@@ -49,6 +49,19 @@
 </div>
 
 <div class="card">
+  <h2>Schedule</h2>
+
+  <h3>Feeder</h3>
+  <div id="feeder-schedule"></div>
+
+  <h3>Water</h3>
+  <div id="water-schedule"></div>
+
+  <button onclick="updateSchedule()">Update Schedule</button>
+  <div class="small" id="schedule_msg"></div>
+</div>
+
+<div class="card">
   <h2>Status</h2>
   <div>Gate: <span id="gate">---</span></div>
   <div>Pump: <span id="pump">---</span></div>
@@ -138,6 +151,115 @@ function formatGMT7(unixSeconds) {
   const date = new Date((unixSeconds + 7 * 3600) * 1000);
   return date.toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
 }
+
+function buildScheduleUI(type) {
+  const container = document.getElementById(`${type}-schedule`);
+  container.innerHTML = "";
+
+  for (let i = 1; i <= 4; i++) {
+    const row = document.createElement("div");
+    row.style.marginBottom = "6px";
+
+    row.innerHTML = `
+      Slot ${i}:
+      <input type="time" id="${type}_time_${i}">
+      <label>
+        <input type="checkbox" id="${type}_en_${i}"> Enabled
+      </label>
+    `;
+
+    container.appendChild(row);
+  }
+}
+
+function collectSchedule(type) {
+  const result = {};
+
+  for (let i = 1; i <= 4; i++) {
+    const time = document.getElementById(`${type}_time_${i}`).value;
+    const enabled = document.getElementById(`${type}_en_${i}`).checked;
+
+    if (enabled && !time) {
+      throw `${type.toUpperCase()} slot ${i} enabled but no time set`;
+    }
+
+    result[i] = {
+      time: enabled ? time : null,
+      enabled: enabled
+    };
+  }
+
+  return result;
+}
+
+function updateSchedule() {
+  const msg = document.getElementById("schedule_msg");
+  msg.textContent = "";
+
+  let schedules;
+
+  try {
+    schedules = {
+      feeder: collectSchedule("feeder"),
+      water: collectSchedule("water")
+    };
+  } catch (err) {
+    msg.textContent = err;
+    msg.style.color = "#ef4444";
+    return;
+  }
+
+  // 1️⃣ PUT schedules (source of truth)
+  fetch(`${FIREBASE_URL}/schedules.json`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(schedules)
+  })
+  .then(res => {
+    if (!res.ok) throw "Failed to save schedule";
+    // 2️⃣ POST reload command
+    return fetch(`${FIREBASE_URL}/commands.json`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        target: "schedule",
+        action: "reload"
+      })
+    });
+  })
+  .then(() => {
+    msg.textContent = "Schedule updated successfully";
+    msg.style.color = "#22c55e";
+  })
+  .catch(err => {
+    msg.textContent = err;
+    msg.style.color = "#ef4444";
+  });
+}
+
+function loadSchedule() {
+  fetch(`${FIREBASE_URL}/schedules.json`)
+    .then(res => res.json())
+    .then(data => {
+      if (!data) return;
+
+      ["feeder", "water"].forEach(type => {
+        if (!data[type]) return;
+
+        for (let i = 1; i <= 4; i++) {
+          const slot = data[type][i];
+          if (!slot) continue;
+
+          document.getElementById(`${type}_time_${i}`).value = slot.time || "";
+          document.getElementById(`${type}_en_${i}`).checked = !!slot.enabled;
+        }
+      });
+    });
+}
+
+buildScheduleUI("feeder");
+buildScheduleUI("water");
+loadSchedule();
 
 </script>
 

@@ -78,6 +78,9 @@ static bool timeValid = false;
 
 static unsigned long lastNtpSync = 0;
 
+unsigned long lastScheduleSync = 0;
+const unsigned long SCHEDULE_SYNC_INTERVAL = 30000;
+
 void initialize_buttons (void);
 void initialize_relays (void);
 void read_button_state (void);
@@ -100,6 +103,9 @@ unsigned long time_now_epoch (void);
 String time_now_hhmm (void);
 String time_now_string (void);
 bool time_is_valid (void);
+void firebase_schedule_sync (void);
+void schedule_tick_task (void);
+void daily_reset_check (void);
 
 void setup() {
   Serial.begin(115200);
@@ -606,4 +612,91 @@ String time_now_string(void) {
 
 bool time_is_valid(void) {
   return timeValid;
+}
+
+void firebase_schedule_sync (void) {
+  if (!firebaseReady) return;
+
+  if (millis() - lastScheduleSync < SCHEDULE_SYNC_INTERVAL) return;
+
+  HTTPClient &h = http;
+  WiFiClientSecure &c = fbClient;
+
+  for (int i = 0; i < 4; i++) {
+    String path = "/schedules/feeder/" + String(i + 1) + ".json";
+    h.begin(c, FIREBASE_URL + path);
+    int code = h.GET();
+
+    if (code == 200) {
+      String payload = h.getString();
+
+      feederSchedule[i].enabled = payload.indexOf("\"enabled\":\"true\"") > 0;
+      int t = payload.indexOf("\"time\":\"");
+      if (t > 0) {
+        strncpy(feederSchedule[i].time,
+                payload.substring(t + 8, t + 13).c_str(),
+                6);
+      }
+    }
+    h.end();
+  }
+
+  for (int i = 0; i < 4; i++) {
+    String path = "/schedules/water/" + String(i + 1) + ".json";
+    h.begin(c, FIREBASE_URL + path);
+    int code = h.GET();
+
+    if (code == 200) {
+      String payload = h.getString();
+
+      waterSchedule[i].enabled = payload.indexOf("\"enabled\":\"true\"") > 0;
+      int t = payload.indexOf("\"time\":\"");
+      if (t > 0) {
+        strncpy(waterSchedule[i].time,
+                payload.substring(t + 8, t + 13).c_str(),
+                6);
+      }
+    }
+    h.end();
+  }
+
+  lastScheduleSync = millis();
+  Serial.println("[SCHEDULE] Synced from Firebase");
+}
+
+void schedule_tick_task (void) {
+  if (!timeValid) return;
+
+  String now = time_now_hhmm();
+  for (int i = 0; i < 4; i++) {
+    if (feederSchedule[i].enabled &&
+        !feederSchedule[i].executed &&
+        strcmp(now.c_str(), feederSchedule[i].time) == 0) {
+
+      Serial.printf("[SCHEDULE] Feeder slot %d triggered\n", i + 1);
+
+      // // 👉 Trigger feeder actuator here
+      // actuator_state &= ~_BV(FEEDER_RELAY);
+
+      feederSchedule[i].executed = true;
+
+      // Optional: report execution to Firebase
+    }
+  }
+}
+
+void daily_reset_check (void) {
+  static int lastDay = -1;
+
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) return;
+
+  if (timeinfo.tm_mday != lastDay) {
+    for (int i = 0; i < 4; i++) {
+      feederSchedule[i].executed = false;
+      waterSchedule[i].executed = false;
+    }
+    lastDay = timeinfo.tm_mday;
+    Serial.println("[SCHEDULE] Daily reset");
+  }
 }

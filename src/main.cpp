@@ -35,6 +35,12 @@ enum PendingActionType {
   SEND_STATUS
 };
 
+struct ScheduleSlot {
+  bool enabled;
+  char time[6];     // "HH:MM"
+  bool executed;    // Prevent double run
+};
+
 struct PendingAction {
   PendingActionType type = NONE;
   String key;     // Firebase command key
@@ -43,6 +49,9 @@ struct PendingAction {
 };
 
 PendingAction pendingAction;
+
+ScheduleSlot feederSchedule[4];
+ScheduleSlot waterSchedule[4];
 
 byte button_state = 0b01111111; // Only use 7 bit
 byte last_button_state = 0b01111111; // Only use 7 bit

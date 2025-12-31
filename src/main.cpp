@@ -135,7 +135,7 @@ void setup() {
 
 void loop() {
   read_button_state();
-  
+
   if (millis() - lastInputTime > 50) {
     lastInputTime = millis();
     check_button_state_change();
@@ -175,6 +175,15 @@ void initialize_buttons (void) {
     Serial.println(F("ERROR: Could not initialize buttons\' PCF8574! Check wiring, I2C address, SDA/SCL connections and power."));
     while (1) delay(100);
   }
+
+  // pcf1.digitalWrite(L_BUTTON, HIGH);
+  // pcf1.digitalWrite(C_BUTTON, HIGH);
+  // pcf1.digitalWrite(R_BUTTON, HIGH);
+  // pcf1.digitalWrite(GATE_BUTTON, HIGH);
+  // pcf1.digitalWrite(PUMP_BUTTON, HIGH);
+  // pcf1.digitalWrite(FAN_BUTTON, HIGH);
+  // pcf1.digitalWrite(FEEDER_BUTTON, HIGH);
+
   Serial.println(F("buttons\' PCF8574 initialized successfully."));
 }
 

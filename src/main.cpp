@@ -27,6 +27,7 @@
 #define NTP_SYNC_INTERVAL (6UL * 60UL * 60UL * 1000UL)
 
 #define WATER_ENABLE_DURATION 3500            // Water will be enabled for 3.5 second
+#define DEBOUNCE_DELAY_MS     50              // Debounce delay for button press
 
 PCF8574 pcf1(PCF8574_ADDRESS_1);
 PCF8574 pcf2(PCF8574_ADDRESS_2);
@@ -85,11 +86,17 @@ const unsigned long SCHEDULE_SYNC_INTERVAL = 30000;
 
 unsigned long lastWaterPumpTriggerTime = 0;
 
-unsigned long lastInputTime = 0;
+byte raw_button_state = 0b01111111; // Only use 7 bit
+byte stable_button_state = 0b01111111; // Only use 7 bit
+byte last_raw_button_state = 0b01111111; // Only use 7 bit
+
+unsigned long lastDebounceTime = 0;
 
 void initialize_buttons (void);
 void initialize_relays (void);
 void read_button_state (void);
+void read_raw_button_state (void);
+void update_button_state (void);
 void check_button_state_change (void);
 void check_relay_state_change (void);
 void check_serial_command (void);
@@ -134,12 +141,8 @@ void setup() {
 }
 
 void loop() {
-  read_button_state();
-
-  if (millis() - lastInputTime > 50) {
-    lastInputTime = millis();
-    check_button_state_change();
-  }
+  read_raw_button_state();
+  update_button_state();
   
   check_serial_command();
   check_relay_state_change();
@@ -246,6 +249,34 @@ void read_button_state(void) {
     button_state |= _BV(FEEDER_BUTTON);
   } else {
     button_state &= ~_BV(FEEDER_BUTTON);
+  }
+}
+
+void read_raw_button_state(void) {
+  raw_button_state = 0;
+
+  raw_button_state |= pcf1.digitalRead(L_BUTTON)      ? _BV(L_BUTTON)      : 0;
+  raw_button_state |= pcf1.digitalRead(C_BUTTON)      ? _BV(C_BUTTON)      : 0;
+  raw_button_state |= pcf1.digitalRead(R_BUTTON)      ? _BV(R_BUTTON)      : 0;
+  raw_button_state |= pcf1.digitalRead(GATE_BUTTON)   ? _BV(GATE_BUTTON)   : 0;
+  raw_button_state |= pcf1.digitalRead(PUMP_BUTTON)   ? _BV(PUMP_BUTTON)   : 0;
+  raw_button_state |= pcf1.digitalRead(FAN_BUTTON)    ? _BV(FAN_BUTTON)    : 0;
+  raw_button_state |= pcf1.digitalRead(FEEDER_BUTTON) ? _BV(FEEDER_BUTTON) : 0;
+}
+
+void update_button_state (void) {
+  if (raw_button_state != last_raw_button_state) {
+    // Serial.println(F("Button state changed, resetting debounce timer."));
+    lastDebounceTime = millis();
+    last_raw_button_state = raw_button_state;
+  }
+
+  if (millis() - lastDebounceTime >= DEBOUNCE_DELAY_MS) {
+    if (stable_button_state != raw_button_state) {
+      button_state = raw_button_state;
+      check_button_state_change();
+      stable_button_state = raw_button_state;
+    }
   }
 }
 

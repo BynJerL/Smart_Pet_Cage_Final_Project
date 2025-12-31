@@ -184,8 +184,8 @@ function collectSchedule(type) {
     }
 
     result[i] = {
-      time: enabled ? time : null,
-      enabled: enabled
+      time: `${enabled}` ? `${time}` : null,
+      enabled: `${enabled}`
     };
   }
 

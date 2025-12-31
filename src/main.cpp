@@ -135,15 +135,15 @@ void setup() {
 
 void loop() {
   read_button_state();
-  check_button_state_change();
+  
+  if (millis() - lastInputTime > 50) {
+    lastInputTime = millis();
+    check_button_state_change();
+  }
+  
   check_serial_command();
   check_relay_state_change();
 
-  if (millis() - lastInputTime < 200) {
-    delay(1);
-    return;
-  }
-  
   time_loop();
   fetch_relay_command();
   perform_pending_firebase_actions();
@@ -242,8 +242,6 @@ void read_button_state(void) {
 
 void check_button_state_change(void) {
   if (button_state != last_button_state) {
-    lastInputTime = millis(); 
-
     if ((button_state & _BV(L_BUTTON)) != (last_button_state & _BV(L_BUTTON))) {
       if (!(button_state & _BV(L_BUTTON))) {
         Serial.println(F("L Button Pressed."));

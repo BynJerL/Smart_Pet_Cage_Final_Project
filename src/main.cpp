@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include <PCF8574.h>
 #include <RTClib.h>
+#include <SPI.h>
+#include <SD.h>
 
 #define L_BUTTON      P0
 #define C_BUTTON      P1
@@ -15,6 +17,11 @@
 #define FAN_RELAY     P2
 #define FEEDER_PIN    4
 
+#define SD_CS   10
+#define SD_MOSI 11
+#define SD_MISO 13
+#define SD_SCK  12
+
 #define PCF8574_ADDRESS_1 0x20
 #define PCF8574_ADDRESS_2 0x21
 
@@ -26,6 +33,7 @@
 PCF8574 pcf1(PCF8574_ADDRESS_1);
 PCF8574 pcf2(PCF8574_ADDRESS_2);
 RTC_DS3231 rtc;
+SPIClass spiSD(FSPI);
 
 struct ActuatorTimer {
     bool active;
@@ -35,6 +43,9 @@ struct ActuatorTimer {
 
 ActuatorTimer pumpTimer   = { false, 0, PUMP_ACTIVE_DUR };
 ActuatorTimer feederTimer = { false, 0, FEEDER_ACTIVE_DUR };
+
+bool rtcInitialized = false;
+bool sdInitialized = false;
 
 byte buttonState = 0b01111111; // Only use 7 bit
 byte lastButtonState = 0b01111111; // Only use 7 bit
@@ -52,6 +63,7 @@ void initializeButtons (void);
 void initializeRelays (void);
 void initializeFeeder (void); // Not yet implemented now
 void initializeRTC (void);
+void initializeSDCardReader (void);
 
 void readRawButtonInput (void);
 void updateButtonInput (void);
@@ -59,6 +71,8 @@ void checkButtonStateChange (void);
 void checkRelayActivity (void);
 void checkSerialCommand (void);
 void printCurrentTime (void);
+void printSchedule (void);
+void printSDCardInfo (void);
 
 void startPump (void);
 void stopPump (void);
@@ -71,6 +85,7 @@ void setup () {
     initializeRelays();
     initializeFeeder();
     initializeRTC();
+    initializeSDCardReader();
 }
 
 void loop () {
@@ -128,7 +143,19 @@ void initializeRTC (void) {
         rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
     }
 
+    rtcInitialized = true;
     Serial.println(F("RTC initialized successfully."));
+}
+void initializeSDCardReader (void) {
+    spiSD.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+    if (!SD.begin(SD_CS, spiSD)) {
+        Serial.println(F("ERROR: Could not initialize SD Card Reader! Check wiring and connections."));
+        sdInitialized = false;
+        return;
+    }
+
+    sdInitialized = true;
+    Serial.println(F("SD Card Reader initialized successfully."));
 }
 
 void readRawButtonInput (void) {
@@ -288,6 +315,9 @@ void checkSerialCommand (void) {
             case 't':
                 printCurrentTime();
                 break;
+            case 's':
+                printSchedule();
+                break;
         }
     }
 }
@@ -307,6 +337,32 @@ void printCurrentTime (void) {
     Serial.print(':');
     Serial.print(now.second(), DEC);
     Serial.println();
+}
+
+void printSchedule (void) {
+    // Placeholder for schedule printing logic
+    Serial.println(F("Schedule printing not yet implemented. Showing SD Card info instead."));
+    printSDCardInfo();
+}
+
+void printSDCardInfo (void) {
+    if (!sdInitialized) {
+        Serial.println(F("SD Card not initialized."));
+        return;
+    }
+
+    uint64_t cardSize = SD.cardSize() / (1024 * 1024);
+    Serial.print(F("SD Card Size: "));
+    Serial.print(cardSize);
+    Serial.println(F(" MB"));
+
+    uint64_t usedSize = SD.usedBytes() / (1024 * 1024);
+    Serial.print(F("SD Card Used Space: "));
+    Serial.print(usedSize);
+    Serial.println(F(" MB"));
+    Serial.print(F("SD Card Free Space: "));
+    Serial.print(cardSize - usedSize);
+    Serial.println(F(" MB"));
 }
 
 void startPump(void) {

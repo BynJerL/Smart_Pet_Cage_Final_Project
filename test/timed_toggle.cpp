@@ -19,7 +19,6 @@
 #define PUMP_ACTIVE_DUR     3500
 #define FEEDER_ACTIVE_DUR   2500
 #define DEBOUNCE_DELAY_MS     50              // Debounce delay for button press
-#define PCF_READ_INTERVAL_MS  30
 
 PCF8574 pcf1(PCF8574_ADDRESS_1);
 PCF8574 pcf2(PCF8574_ADDRESS_2);
@@ -40,7 +39,6 @@ byte stableButtonState = 0b01111111; // Only use 7 bit
 byte lastRawButtonState = 0b01111111; // Only use 7 bit
 
 unsigned long lastDebounceTime = 0;
-unsigned long lastPCFReadTime = 0;
 
 byte actuatorState = 0b00000111; // Only use 3 bit for now
 byte lastActuatorState = 0b00000111; // Only use 3 bit for now
@@ -60,7 +58,7 @@ void startFeeder (void);
 void stopFeeder (void); 
 
 void setup () {
-    Serial.begin(115200);
+    Serial.begin(9600);
     initializeButtons();
     initializeRelays();
     initializeFeeder();
@@ -86,14 +84,6 @@ void initializeButtons (void) {
         while (1) delay(100);
     }
 
-    // pcf1.digitalWrite(L_BUTTON, HIGH);
-    // pcf1.digitalWrite(C_BUTTON, HIGH);
-    // pcf1.digitalWrite(R_BUTTON, HIGH);
-    // pcf1.digitalWrite(GATE_BUTTON, HIGH);
-    // pcf1.digitalWrite(PUMP_BUTTON, HIGH);
-    // pcf1.digitalWrite(FAN_BUTTON, HIGH);
-    // pcf1.digitalWrite(FEEDER_BUTTON, HIGH);
-
     Serial.println(F("buttons\' PCF8574 initialized successfully."));
 }
 void initializeRelays (void) {
@@ -116,11 +106,6 @@ void initializeRelays (void) {
 void initializeFeeder (void) {}
 
 void readRawButtonInput (void) {
-  unsigned long now = millis();
-  if (now - lastPCFReadTime < PCF_READ_INTERVAL_MS) return;
-
-  lastPCFReadTime = now;
-
   rawButtonState = 0;
 
   rawButtonState |= pcf1.digitalRead(L_BUTTON)      ? _BV(L_BUTTON)      : 0;
@@ -133,10 +118,6 @@ void readRawButtonInput (void) {
 }
 
 void updateButtonInput (void) {
-    // Serial.print(rawButtonState);
-    // Serial.print(", ");
-    // Serial.println(lastRawButtonState);
-
     if (rawButtonState != lastRawButtonState) {
         // Serial.println(F("Button state changed, resetting debounce timer."));
         lastDebounceTime = millis();

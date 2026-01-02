@@ -1,0 +1,6 @@
+enabled,type,time
+1,FEEDER,09:30
+1,FEEDER,17:00
+1,WATER,09:30
+1,WATER,17:00
+0,WATER,13:00

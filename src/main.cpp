@@ -30,10 +30,24 @@
 #define DEBOUNCE_DELAY_MS     50              // Debounce delay for button press
 #define PCF_READ_INTERVAL_MS  30
 
+#define MAX_SCHEDULES   8
+
 PCF8574 pcf1(PCF8574_ADDRESS_1);
 PCF8574 pcf2(PCF8574_ADDRESS_2);
 RTC_DS3231 rtc;
 SPIClass spiSD(FSPI);
+
+enum ScheduleType : uint8_t {
+  SCHED_FEEDER,
+  SCHED_WATER
+};
+
+struct ScheduleSlot {
+  bool enabled;
+  ScheduleType type;
+  char time[6];     // "HH:MM"
+  bool executed;    // runtime-only
+};
 
 struct ActuatorTimer {
     bool active;
@@ -43,6 +57,7 @@ struct ActuatorTimer {
 
 ActuatorTimer pumpTimer   = { false, 0, PUMP_ACTIVE_DUR };
 ActuatorTimer feederTimer = { false, 0, FEEDER_ACTIVE_DUR };
+ScheduleSlot schedules[MAX_SCHEDULES];
 
 bool rtcInitialized = false;
 bool sdInitialized = false;
@@ -73,6 +88,8 @@ void checkSerialCommand (void);
 void printCurrentTime (void);
 void printSchedule (void);
 void printSDCardInfo (void);
+void loadScheduleFromSDCard (void);
+ScheduleType parseScheduleType (const char* str);
 
 void startPump (void);
 void stopPump (void);
@@ -86,6 +103,7 @@ void setup () {
     initializeFeeder();
     initializeRTC();
     initializeSDCardReader();
+    loadScheduleFromSDCard();
 }
 
 void loop () {
@@ -340,9 +358,19 @@ void printCurrentTime (void) {
 }
 
 void printSchedule (void) {
-    // Placeholder for schedule printing logic
-    Serial.println(F("Schedule printing not yet implemented. Showing SD Card info instead."));
-    printSDCardInfo();
+    Serial.println(F("=== Schedule List ==="));
+
+    for (uint8_t i = 0; i < MAX_SCHEDULES; i++) {
+        if (!schedules[i].enabled) continue;
+
+        Serial.print(F("#"));
+        Serial.print(i + 1);
+        Serial.print(F(" | "));
+
+        Serial.print(schedules[i].type == SCHED_FEEDER ? F("FEEDER") : F("WATER"));
+        Serial.print(F(" | "));
+        Serial.println(schedules[i].time);
+    }
 }
 
 void printSDCardInfo (void) {
@@ -397,4 +425,68 @@ void stopFeeder(void) {
     feederTimer.active = false;
     analogWrite(FEEDER_PIN, 0);
     Serial.println(F("Feeder OFF"));
+}
+
+void loadScheduleFromSDCard (void) {
+    if (!sdInitialized) {
+        Serial.println(F("SD Card not initialized. Cannot load schedule."));
+        return;
+    }
+
+    if (!SD.exists("/schedule.csv")) {
+        Serial.println(F("No schedule file found on SD Card."));
+        return;
+    }
+
+    File file = SD.open("/schedule.csv", FILE_READ);
+    if (!file) {
+        Serial.println(F("Failed to open schedule.csv"));
+        return;
+    }
+
+    Serial.println(F("Reading schedule.csv..."));
+
+    uint8_t index = 0;
+    char line[32];
+    file.readStringUntil('\n');
+
+    while (file.available() && index < MAX_SCHEDULES) {
+        int len = file.readBytesUntil('\n', line, sizeof(line) - 1);
+        line[len] = '\0';
+
+        char* token;
+
+        // enabled
+        token = strtok(line, ",");
+        if (!token) continue;
+        schedules[index].enabled = atoi(token);
+
+        // type
+        token = strtok(NULL, ",");
+        if (!token) continue;
+        schedules[index].type = parseScheduleType(token);
+
+        // time
+        token = strtok(NULL, ",");
+        if (!token) continue;
+        strncpy(schedules[index].time, token, sizeof(schedules[index].time));
+        schedules[index].time[5] = '\0';
+
+        schedules[index].executed = false; // runtime only
+
+        index++;
+    }
+
+    file.close();
+
+    Serial.print(F("Loaded "));
+    Serial.print(index);
+    Serial.println(F(" schedules."));
+}
+
+ScheduleType parseScheduleType (const char* str) {
+    if (strcmp(str, "FEEDER") == 0) {
+        return SCHED_FEEDER;
+    }
+    return SCHED_WATER;
 }

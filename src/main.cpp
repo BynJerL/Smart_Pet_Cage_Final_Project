@@ -54,6 +54,7 @@ void readRawButtonInput (void);
 void updateButtonInput (void);
 void checkButtonStateChange (void);
 void checkRelayActivity (void);
+void checkSerialCommand (void);
 
 void startPump (void);
 void stopPump (void);
@@ -71,6 +72,7 @@ void loop () {
     readRawButtonInput();
     updateButtonInput();
     checkRelayActivity();
+    checkSerialCommand();
 }
 
 void initializeButtons (void) {
@@ -86,14 +88,6 @@ void initializeButtons (void) {
         Serial.println(F("ERROR: Could not initialize buttons\' PCF8574! Check wiring, I2C address, SDA/SCL connections and power."));
         while (1) delay(100);
     }
-
-    // pcf1.digitalWrite(L_BUTTON, HIGH);
-    // pcf1.digitalWrite(C_BUTTON, HIGH);
-    // pcf1.digitalWrite(R_BUTTON, HIGH);
-    // pcf1.digitalWrite(GATE_BUTTON, HIGH);
-    // pcf1.digitalWrite(PUMP_BUTTON, HIGH);
-    // pcf1.digitalWrite(FAN_BUTTON, HIGH);
-    // pcf1.digitalWrite(FEEDER_BUTTON, HIGH);
 
     Serial.println(F("buttons\' PCF8574 initialized successfully."));
 }
@@ -241,6 +235,39 @@ void checkRelayActivity (void) {
     // Feeder timer
     if (feederTimer.active && (now - feederTimer.startTime >= feederTimer.duration)) {
         stopFeeder();
+    }
+}
+
+void checkSerialCommand (void) {
+    while (Serial.available() > 0) {
+        char cmd = Serial.read();
+
+        switch (cmd) {
+            case '1': 
+                if (actuatorState & _BV(GATE_RELAY)) {
+                    actuatorState &= ~_BV(GATE_RELAY);
+                } else {
+                    actuatorState |= _BV(GATE_RELAY);
+                }
+                Serial.println(F("Gate Relay Toggled."));
+                break;
+            case '2':
+                startPump();
+                Serial.println(F("Pump Relay Activated."));
+                break;
+            case '3':
+                if (actuatorState & _BV(FAN_RELAY)) {
+                    actuatorState &= ~_BV(FAN_RELAY);
+                } else {
+                    actuatorState |= _BV(FAN_RELAY);
+                }
+                Serial.println(F("Fan Relay Toggled."));
+                break;
+            case '4':
+                startFeeder();
+                Serial.println(F("Feeder Activated."));
+                break;
+        }
     }
 }
 

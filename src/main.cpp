@@ -85,6 +85,8 @@ void updateButtonInput (void);
 void checkButtonStateChange (void);
 void checkRelayActivity (void);
 void checkSerialCommand (void);
+void checkScheduleExecution (void);
+void resetScheduleExecutionAtMidnight (void);
 void printCurrentTime (void);
 void printSchedule (void);
 void printSDCardInfo (void);
@@ -110,6 +112,7 @@ void loop () {
     readRawButtonInput();
     updateButtonInput();
     checkRelayActivity();
+    checkScheduleExecution();
     checkSerialCommand();
 }
 
@@ -336,6 +339,10 @@ void checkSerialCommand (void) {
             case 's':
                 printSchedule();
                 break;
+            case 'x':
+                rtc.adjust(DateTime(2025, 1, 1, 16, 58, 0));
+                Serial.println(F("RTC manually set to 16:58 for testing."));
+                break;
         }
     }
 }
@@ -489,4 +496,55 @@ ScheduleType parseScheduleType (const char* str) {
         return SCHED_FEEDER;
     }
     return SCHED_WATER;
+}
+
+void checkScheduleExecution(void) {
+    static uint32_t lastCheck = 0;
+    if (millis() - lastCheck < 1000) return; // check once per second
+    lastCheck = millis();
+
+    DateTime now = rtc.now();
+
+    char currentTime[6];
+    snprintf(currentTime, sizeof(currentTime), "%02d:%02d", now.hour(), now.minute());
+
+    // Reset execution flags at midnight
+    if (now.hour() == 0 && now.minute() == 0) {
+        resetScheduleExecutionAtMidnight();
+    }
+
+    if (now.hour() != 0 || now.minute() != 0) {
+        static bool alreadyReset = false;
+        alreadyReset = false;
+    }
+
+    for (uint8_t i = 0; i < MAX_SCHEDULES; i++) {
+        if (!schedules[i].enabled) continue;
+        if (schedules[i].executed) continue;
+
+        if (strcmp(schedules[i].time, currentTime) == 0) {
+            Serial.print(F("Executing schedule #"));
+            Serial.println(i + 1);
+
+            if (schedules[i].type == SCHED_FEEDER) {
+                startFeeder();
+            } else if (schedules[i].type == SCHED_WATER) {
+                startPump();
+            }
+
+            schedules[i].executed = true;
+        }
+    }
+}
+
+void resetScheduleExecutionAtMidnight(void) {
+    static bool alreadyReset = false;
+
+    if (!alreadyReset) {
+        Serial.println(F("Midnight reached. Resetting schedules."));
+        for (uint8_t i = 0; i < MAX_SCHEDULES; i++) {
+            schedules[i].executed = false;
+        }
+        alreadyReset = true;
+    }
 }

@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <PCF8574.h>
+#include <RTClib.h>
 
 #define L_BUTTON      P0
 #define C_BUTTON      P1
@@ -24,6 +25,7 @@
 
 PCF8574 pcf1(PCF8574_ADDRESS_1);
 PCF8574 pcf2(PCF8574_ADDRESS_2);
+RTC_DS3231 rtc;
 
 struct ActuatorTimer {
     bool active;
@@ -49,12 +51,14 @@ byte lastActuatorState = 0b00000111; // Only use 3 bit for now
 void initializeButtons (void);
 void initializeRelays (void);
 void initializeFeeder (void); // Not yet implemented now
+void initializeRTC (void);
 
 void readRawButtonInput (void);
 void updateButtonInput (void);
 void checkButtonStateChange (void);
 void checkRelayActivity (void);
 void checkSerialCommand (void);
+void printCurrentTime (void);
 
 void startPump (void);
 void stopPump (void);
@@ -66,6 +70,7 @@ void setup () {
     initializeButtons();
     initializeRelays();
     initializeFeeder();
+    initializeRTC();
 }
 
 void loop () {
@@ -111,6 +116,19 @@ void initializeRelays (void) {
 void initializeFeeder (void) {
     pinMode(FEEDER_PIN, OUTPUT);
     Serial.println(F("feeder initialized successfully."));
+}
+void initializeRTC (void) {
+    if (!rtc.begin()) {
+        Serial.println(F("Couldn't find RTC"));
+        while (1) delay(100);
+    }
+
+    if (rtc.lostPower()) {
+        Serial.println(F("RTC lost power, setting the time!"));
+        rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    }
+
+    Serial.println(F("RTC initialized successfully."));
 }
 
 void readRawButtonInput (void) {
@@ -267,8 +285,28 @@ void checkSerialCommand (void) {
                 startFeeder();
                 Serial.println(F("Feeder Activated."));
                 break;
+            case 't':
+                printCurrentTime();
+                break;
         }
     }
+}
+
+void printCurrentTime (void) {
+    DateTime now = rtc.now();
+    Serial.print(F("Current DateTime: "));
+    Serial.print(now.year(), DEC);
+    Serial.print('/');
+    Serial.print(now.month(), DEC);
+    Serial.print('/');
+    Serial.print(now.day(), DEC);
+    Serial.print(' ');
+    Serial.print(now.hour(), DEC);
+    Serial.print(':');
+    Serial.print(now.minute(), DEC);
+    Serial.print(':');
+    Serial.print(now.second(), DEC);
+    Serial.println();
 }
 
 void startPump(void) {

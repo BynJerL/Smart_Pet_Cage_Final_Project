@@ -12,6 +12,7 @@
 #define GATE_RELAY    P0
 #define PUMP_RELAY    P1
 #define FAN_RELAY     P2
+#define FEEDER_PIN    4
 
 #define PCF8574_ADDRESS_1 0x20
 #define PCF8574_ADDRESS_2 0x21
@@ -113,23 +114,26 @@ void initializeRelays (void) {
 
     Serial.println(F("relays\' PCF8574 initialized successfully."));
 }
-void initializeFeeder (void) {}
+void initializeFeeder (void) {
+    pinMode(FEEDER_PIN, OUTPUT);
+    Serial.println(F("feeder initialized successfully."));
+}
 
 void readRawButtonInput (void) {
-  unsigned long now = millis();
-  if (now - lastPCFReadTime < PCF_READ_INTERVAL_MS) return;
+    unsigned long now = millis();
+    if (now - lastPCFReadTime < PCF_READ_INTERVAL_MS) return;
 
-  lastPCFReadTime = now;
+    lastPCFReadTime = now;
 
-  rawButtonState = 0;
+    rawButtonState = 0;
 
-  rawButtonState |= pcf1.digitalRead(L_BUTTON)      ? _BV(L_BUTTON)      : 0;
-  rawButtonState |= pcf1.digitalRead(C_BUTTON)      ? _BV(C_BUTTON)      : 0;
-  rawButtonState |= pcf1.digitalRead(R_BUTTON)      ? _BV(R_BUTTON)      : 0;
-  rawButtonState |= pcf1.digitalRead(GATE_BUTTON)   ? _BV(GATE_BUTTON)   : 0;
-  rawButtonState |= pcf1.digitalRead(PUMP_BUTTON)   ? _BV(PUMP_BUTTON)   : 0;
-  rawButtonState |= pcf1.digitalRead(FAN_BUTTON)    ? _BV(FAN_BUTTON)    : 0;
-  rawButtonState |= pcf1.digitalRead(FEEDER_BUTTON) ? _BV(FEEDER_BUTTON) : 0;
+    rawButtonState |= pcf1.digitalRead(L_BUTTON)      ? _BV(L_BUTTON)      : 0;
+    rawButtonState |= pcf1.digitalRead(C_BUTTON)      ? _BV(C_BUTTON)      : 0;
+    rawButtonState |= pcf1.digitalRead(R_BUTTON)      ? _BV(R_BUTTON)      : 0;
+    rawButtonState |= pcf1.digitalRead(GATE_BUTTON)   ? _BV(GATE_BUTTON)   : 0;
+    rawButtonState |= pcf1.digitalRead(PUMP_BUTTON)   ? _BV(PUMP_BUTTON)   : 0;
+    rawButtonState |= pcf1.digitalRead(FAN_BUTTON)    ? _BV(FAN_BUTTON)    : 0;
+    rawButtonState |= pcf1.digitalRead(FEEDER_BUTTON) ? _BV(FEEDER_BUTTON) : 0;
 }
 
 void updateButtonInput (void) {
@@ -264,10 +268,12 @@ void startFeeder(void) {
     feederTimer.startTime = millis();
 
     // For now: LED / relay simulation
+    analogWrite(FEEDER_PIN, 255);
     Serial.println(F("Feeder ON"));
 }
 
 void stopFeeder(void) {
     feederTimer.active = false;
+    analogWrite(FEEDER_PIN, 0);
     Serial.println(F("Feeder OFF"));
 }

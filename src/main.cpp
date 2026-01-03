@@ -5,6 +5,9 @@
 #include <SD.h>
 #include <myconfig.h>
 #include <WiFi.h>
+#include <WiFiUdp.h>
+#include <NTPClient.h>
+#include <time.h>
 
 #define L_BUTTON      P0
 #define C_BUTTON      P1
@@ -32,12 +35,19 @@
 #define DEBOUNCE_DELAY_MS     50              // Debounce delay for button press
 #define PCF_READ_INTERVAL_MS  30
 
+#define TIMEZONE_OFFSET_SEC (7 * 3600)
+#define NTP_SYNC_INTERVAL (6UL * 60UL * 60UL * 1000UL)
+#define RTC_DRIFT_THRESHOLD_SEC 5
+#define MIN_SYNC_INTERVAL_MS (6UL * 60UL * 60UL * 1000UL) // 6 hours
+
 #define MAX_SCHEDULES   8
 
 PCF8574 pcf1(PCF8574_ADDRESS_1);
 PCF8574 pcf2(PCF8574_ADDRESS_2);
 RTC_DS3231 rtc;
 SPIClass spiSD(FSPI);
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "pool.ntp.org", TIMEZONE_OFFSET_SEC, NTP_SYNC_INTERVAL);
 
 enum ScheduleType : uint8_t {
   SCHED_FEEDER,
@@ -63,6 +73,7 @@ ScheduleSlot schedules[MAX_SCHEDULES];
 
 bool rtcInitialized = false;
 bool sdInitialized = false;
+bool ntpInitialized = false;
 
 byte buttonState = 0b01111111; // Only use 7 bit
 byte lastButtonState = 0b01111111; // Only use 7 bit
@@ -72,6 +83,7 @@ byte lastRawButtonState = 0b01111111; // Only use 7 bit
 
 unsigned long lastDebounceTime = 0;
 unsigned long lastPCFReadTime = 0;
+unsigned long lastNTPSyncMillis = 0;
 
 byte actuatorState = 0b00000111; // Only use 3 bit for now
 byte lastActuatorState = 0b00000111; // Only use 3 bit for now
@@ -82,6 +94,7 @@ void initializeFeeder (void); // Not yet implemented now
 void initializeRTC (void);
 void initializeSDCardReader (void);
 void initializeWiFi (void);
+void initializeNTP (void);
 
 void readRawButtonInput (void);
 void updateButtonInput (void);
@@ -95,6 +108,7 @@ void printSchedule (void);
 void printSDCardInfo (void);
 void loadScheduleFromSDCard (void);
 ScheduleType parseScheduleType (const char* str);
+bool syncRTCWithNTP(bool force = false);
 
 void startPump (void);
 void stopPump (void);
@@ -107,6 +121,7 @@ void setup () {
     initializeRelays();
     initializeFeeder();
     initializeWiFi();
+    initializeNTP();
     initializeRTC();
     initializeSDCardReader();
     loadScheduleFromSDCard();
@@ -193,6 +208,14 @@ void initializeWiFi (void) {
     Serial.println();
     Serial.print(F("Connected to WiFi. IP address: "));
     Serial.println(WiFi.localIP());
+}
+void initializeNTP (void) {
+    timeClient.begin();
+    while(!timeClient.update()) {
+        timeClient.forceUpdate();
+    }
+    ntpInitialized = true;
+    Serial.println(F("NTP Client initialized successfully."));
 }
 
 void readRawButtonInput (void) {
@@ -358,6 +381,9 @@ void checkSerialCommand (void) {
             case 'x':
                 rtc.adjust(DateTime(2025, 1, 1, 16, 58, 0));
                 Serial.println(F("RTC manually set to 16:58 for testing."));
+                break;
+            case 'n':
+                syncRTCWithNTP(true);
                 break;
         }
     }
@@ -563,4 +589,44 @@ void resetScheduleExecutionAtMidnight(void) {
         }
         alreadyReset = true;
     }
+}
+
+bool syncRTCWithNTP(bool force) {
+    if (!ntpInitialized || WiFi.status() != WL_CONNECTED) {
+        Serial.println(F("NTP sync skipped (no WiFi)."));
+        return false;
+    }
+
+    if (!force && millis() - lastNTPSyncMillis < MIN_SYNC_INTERVAL_MS) {
+        Serial.println(F("NTP sync skipped (interval)."));
+        return false;
+    }
+
+    Serial.println(F("Syncing RTC with NTP..."));
+
+    if (!timeClient.update()) {
+        Serial.println(F("NTP update failed."));
+        return false;
+    }
+
+    time_t ntpTime = timeClient.getEpochTime();
+    DateTime rtcTime = rtc.now();
+
+    time_t rtcEpoch = rtcTime.unixtime();
+    long drift = abs((long)(ntpTime - rtcEpoch));
+
+    Serial.print(F("RTC drift: "));
+    Serial.print(drift);
+    Serial.println(F(" sec"));
+
+    if (!force && drift < RTC_DRIFT_THRESHOLD_SEC) {
+        Serial.println(F("RTC drift acceptable. No update."));
+        return false;
+    }
+
+    rtc.adjust(DateTime(ntpTime));
+    lastNTPSyncMillis = millis();
+
+    Serial.println(F("RTC updated from NTP."));
+    return true;
 }

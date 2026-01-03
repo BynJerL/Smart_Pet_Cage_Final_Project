@@ -3,6 +3,8 @@
 #include <RTClib.h>
 #include <SPI.h>
 #include <SD.h>
+#include <myconfig.h>
+#include <WiFi.h>
 
 #define L_BUTTON      P0
 #define C_BUTTON      P1
@@ -79,6 +81,7 @@ void initializeRelays (void);
 void initializeFeeder (void); // Not yet implemented now
 void initializeRTC (void);
 void initializeSDCardReader (void);
+void initializeWiFi (void);
 
 void readRawButtonInput (void);
 void updateButtonInput (void);
@@ -103,6 +106,7 @@ void setup () {
     initializeButtons();
     initializeRelays();
     initializeFeeder();
+    initializeWiFi();
     initializeRTC();
     initializeSDCardReader();
     loadScheduleFromSDCard();
@@ -177,6 +181,18 @@ void initializeSDCardReader (void) {
 
     sdInitialized = true;
     Serial.println(F("SD Card Reader initialized successfully."));
+}
+void initializeWiFi (void) {
+    WiFi.begin(WIFI_SSID, WIFI_PASS);
+
+    Serial.print(F("Connecting to WiFi"));
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(F("."));
+    }
+    Serial.println();
+    Serial.print(F("Connected to WiFi. IP address: "));
+    Serial.println(WiFi.localIP());
 }
 
 void readRawButtonInput (void) {

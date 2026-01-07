@@ -210,11 +210,29 @@ void initializeWiFi (void) {
     Serial.println(WiFi.localIP());
 }
 void initializeNTP (void) {
+    timeClient.setUpdateInterval(3600000);  // 1 hour between syncs
+    timeClient.setTimeOffset(TIMEZONE_OFFSET_SEC);
     timeClient.begin();
-    while(!timeClient.update()) {
-        timeClient.forceUpdate();
+    
+    Serial.print(F("Waiting for NTP first update..."));
+    int attempts = 0;
+    while (!timeClient.update() && attempts < 20) {
+        delay(500);
+        Serial.print(F("."));
+        attempts++;
     }
+    
+    if (attempts >= 20) {
+        Serial.println(F(" FAILED after 10 seconds."));
+        Serial.println(F("WiFi status: "));
+        Serial.println(WiFi.status());
+        ntpInitialized = false;
+        return;
+    }
+    
+    Serial.println(F(" OK"));
     ntpInitialized = true;
+    lastNTPSyncMillis = millis();
     Serial.println(F("NTP Client initialized successfully."));
 }
 
@@ -384,6 +402,15 @@ void checkSerialCommand (void) {
                 break;
             case 'n':
                 syncRTCWithNTP(true);
+                break;
+            case 'd':
+                IPAddress serverIP;
+                if (WiFi.hostByName("pool.ntp.org", serverIP)) {
+                    Serial.print(F("DNS Resolution: pool.ntp.org -> "));
+                    Serial.println(serverIP);
+                } else {
+                    Serial.println(F("DNS Resolution failed for pool.ntp.org"));
+                }
                 break;
         }
     }
@@ -592,8 +619,14 @@ void resetScheduleExecutionAtMidnight(void) {
 }
 
 bool syncRTCWithNTP(bool force) {
-    if (!ntpInitialized || WiFi.status() != WL_CONNECTED) {
-        Serial.println(F("NTP sync skipped (no WiFi)."));
+    if (!ntpInitialized) {
+        Serial.println(F("NTP not initialized."));
+        return false;
+    }
+    
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.print(F("WiFi not connected. Status: "));
+        Serial.println(WiFi.status());
         return false;
     }
 
@@ -603,18 +636,50 @@ bool syncRTCWithNTP(bool force) {
     }
 
     Serial.println(F("Syncing RTC with NTP..."));
-
-    if (!timeClient.update()) {
-        Serial.println(F("NTP update failed."));
+    Serial.print(F("Local IP: "));
+    Serial.println(WiFi.localIP());
+    
+    // Force update with longer timeout
+    bool updated = false;
+    for (int i = 0; i < 3; i++) {
+        Serial.print(F("  Attempt "));
+        Serial.print(i + 1);
+        Serial.print(F("/3 - "));
+        
+        // Clear any pending packets
+        while (ntpUDP.parsePacket() > 0) {
+            ntpUDP.flush();
+        }
+        
+        // Force timeClient to send NTP request
+        timeClient.forceUpdate();
+        delay(1500);  // Wait for response
+        
+        if (timeClient.isTimeSet()) {
+            updated = true;
+            Serial.println(F("OK - Time received"));
+            break;
+        }
+        Serial.println(F("failed - no response"));
+        delay(1000);
+    }
+    
+    if (!updated) {
+        Serial.println(F("NTP update failed after 3 attempts."));
+        Serial.println(F("Possible causes:"));
+        Serial.println(F("  1. DNS cannot resolve pool.ntp.org"));
+        Serial.println(F("  2. UDP port 123 is blocked by firewall"));
+        Serial.println(F("  3. NTP server is unreachable"));
         return false;
     }
 
     time_t ntpTime = timeClient.getEpochTime();
     DateTime rtcTime = rtc.now();
-
     time_t rtcEpoch = rtcTime.unixtime();
     long drift = abs((long)(ntpTime - rtcEpoch));
 
+    Serial.print(F("NTP Epoch time: "));
+    Serial.println(ntpTime);
     Serial.print(F("RTC drift: "));
     Serial.print(drift);
     Serial.println(F(" sec"));
@@ -626,7 +691,7 @@ bool syncRTCWithNTP(bool force) {
 
     rtc.adjust(DateTime(ntpTime));
     lastNTPSyncMillis = millis();
-
-    Serial.println(F("RTC updated from NTP."));
+    Serial.println(F("RTC updated from NTP successfully."));
+    printCurrentTime();
     return true;
 }

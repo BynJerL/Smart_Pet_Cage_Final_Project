@@ -102,6 +102,7 @@ void checkButtonStateChange (void);
 void checkRelayActivity (void);
 void checkSerialCommand (void);
 void checkScheduleExecution (void);
+void checkAndSyncRTCOnBoot(void);
 void resetScheduleExecutionAtMidnight (void);
 void printCurrentTime (void);
 void printSchedule (void);
@@ -123,6 +124,7 @@ void setup () {
     initializeWiFi();
     initializeNTP();
     initializeRTC();
+    checkAndSyncRTCOnBoot();
     initializeSDCardReader();
     loadScheduleFromSDCard();
 }
@@ -222,7 +224,7 @@ void initializeNTP (void) {
         attempts++;
     }
     
-    if (attempts >= 20) {
+    if (attempts >= 10) {
         Serial.println(F(" FAILED after 10 seconds."));
         Serial.println(F("WiFi status: "));
         Serial.println(WiFi.status());
@@ -694,4 +696,51 @@ bool syncRTCWithNTP(bool force) {
     Serial.println(F("RTC updated from NTP successfully."));
     printCurrentTime();
     return true;
+}
+
+void checkAndSyncRTCOnBoot(void) {
+    Serial.println(F("Checking RTC against NTP on boot..."));
+
+    if (!rtcInitialized) {
+        Serial.println(F("RTC not initialized, skipping NTP check."));
+        return;
+    }
+
+    if (!ntpInitialized) {
+        Serial.println(F("NTP not available, using RTC time."));
+        printCurrentTime();
+        return;
+    }
+
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println(F("WiFi not connected, skipping NTP check."));
+        printCurrentTime();
+        return;
+    }
+
+    // Make sure NTP has valid time
+    if (!timeClient.isTimeSet()) {
+        Serial.println(F("NTP time not set yet."));
+        return;
+    }
+
+    time_t ntpTime = timeClient.getEpochTime();
+    DateTime rtcTime = rtc.now();
+
+    time_t rtcEpoch = rtcTime.unixtime();
+    long drift = abs((long)(ntpTime - rtcEpoch));
+
+    Serial.print(F("RTC vs NTP drift on boot: "));
+    Serial.print(drift);
+    Serial.println(F(" sec"));
+
+    if (drift >= RTC_DRIFT_THRESHOLD_SEC) {
+        Serial.println(F("Drift exceeds threshold. Updating RTC from NTP."));
+        rtc.adjust(DateTime(ntpTime));
+        lastNTPSyncMillis = millis();
+        printCurrentTime();
+    } else {
+        Serial.println(F("RTC time is acceptable. No update needed."));
+        printCurrentTime();
+    }
 }

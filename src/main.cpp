@@ -8,6 +8,8 @@
 #include <WiFiUdp.h>
 #include <NTPClient.h>
 #include <time.h>
+#include <EEPROM.h>
+#include <WebServer.h>
 
 #define L_BUTTON      P0
 #define C_BUTTON      P1
@@ -41,6 +43,10 @@
 #define MIN_SYNC_INTERVAL_MS (6UL * 60UL * 60UL * 1000UL) // 6 hours
 
 #define MAX_SCHEDULES   8
+
+#define EEPROM_SIZE 96
+#define SSID_ADDR 0
+#define PASS_ADDR 32
 
 PCF8574 pcf1(PCF8574_ADDRESS_1);
 PCF8574 pcf2(PCF8574_ADDRESS_2);

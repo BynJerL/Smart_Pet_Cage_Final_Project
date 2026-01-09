@@ -124,6 +124,7 @@ void printSDCardInfo (void);
 void loadScheduleFromSDCard (void);
 ScheduleType parseScheduleType (const char* str);
 bool syncRTCWithNTP(bool force = false);
+bool updateScheduleFromCloud(void);
 
 void readEEPROM();
 void writeEEPROM(const char* newSsid, const char* newPass);
@@ -453,6 +454,20 @@ void checkSerialCommand (void) {
                 break;
             case 'n':
                 syncRTCWithNTP(true);
+                break;
+            case 'u':
+                if (isConfigMode) {
+                    Serial.println(F("Config mode active. Cloud sync blocked."));
+                    break;
+                }
+
+                if (WiFi.status() != WL_CONNECTED) {
+                    Serial.println(F("WiFi not connected. Cannot update schedule."));
+                    break;
+                }
+
+                Serial.println(F("Updating schedule from cloud..."));
+                updateScheduleFromCloud();
                 break;
             case 'd':
                 IPAddress serverIP;
@@ -886,10 +901,50 @@ void startConfigAP() {
   });
 
   server.on("/retry", HTTP_POST, []() {
-    server.send(200, "text/plain", "Rebooting...");
+    server.send(200, "text/plain", "Device will reboot and attempt to reconnect using saved WiFi.");
     delay(200);
     ESP.restart();
   });
 
   server.begin();
+}
+
+bool updateScheduleFromCloud(void) {
+    Serial.println(F("[Cloud] Fetching schedule..."));
+
+    // 1. Fetch data from cloud (HTTP / Firebase / etc)
+    //    For now, simulate success
+    bool fetchOK = true;
+
+    if (!fetchOK) {
+        Serial.println(F("[Cloud] Fetch failed."));
+        return false;
+    }
+
+    // 2. Write to SD (schedule.csv)
+    if (!sdInitialized) {
+        Serial.println(F("[Cloud] SD not initialized."));
+        return false;
+    }
+
+    File file = SD.open("/schedule.csv", FILE_WRITE);
+    if (!file) {
+        Serial.println(F("[Cloud] Failed to open schedule.csv"));
+        return false;
+    }
+
+    // Example content (replace later)
+    file.println("enabled,type,time");
+    file.println("1,FEEDER,07:00");
+    file.println("1,WATER,12:00");
+
+    file.close();
+
+    Serial.println(F("[Cloud] Schedule saved to SD."));
+
+    // 3. Reload into RAM
+    loadScheduleFromSDCard();
+
+    Serial.println(F("[Cloud] Schedule update complete."));
+    return true;
 }

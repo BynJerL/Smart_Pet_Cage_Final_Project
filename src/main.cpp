@@ -174,14 +174,14 @@ void setup () {
 }
 
 void loop () {
+    readRawButtonInput();
+    updateButtonInput();
+    checkRelayActivity();
+    checkScheduleExecution();
+    checkSerialCommand();
+
     if (isConfigMode) {
         server.handleClient();
-    } else {
-        readRawButtonInput();
-        updateButtonInput();
-        checkRelayActivity();
-        checkScheduleExecution();
-        checkSerialCommand();
     }
 }
 

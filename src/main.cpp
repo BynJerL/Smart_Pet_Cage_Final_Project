@@ -10,6 +10,8 @@
 #include <time.h>
 #include <EEPROM.h>
 #include <WebServer.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 
 #define L_BUTTON      P0
 #define C_BUTTON      P1
@@ -56,6 +58,8 @@ SPIClass spiSD(FSPI);
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", TIMEZONE_OFFSET_SEC, NTP_SYNC_INTERVAL);
 WebServer server(80);
+WiFiClientSecure fbClient;
+HTTPClient http;
 
 enum ScheduleType : uint8_t {
   SCHED_FEEDER,

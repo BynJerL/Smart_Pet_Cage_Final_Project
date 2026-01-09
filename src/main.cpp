@@ -41,6 +41,7 @@
 #define NTP_SYNC_INTERVAL (6UL * 60UL * 60UL * 1000UL)
 #define RTC_DRIFT_THRESHOLD_SEC 5
 #define MIN_SYNC_INTERVAL_MS (6UL * 60UL * 60UL * 1000UL) // 6 hours
+#define WIFI_TIMEOUT 20000UL // 20 seconds
 
 #define MAX_SCHEDULES   8
 
@@ -54,6 +55,7 @@ RTC_DS3231 rtc;
 SPIClass spiSD(FSPI);
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", TIMEZONE_OFFSET_SEC, NTP_SYNC_INTERVAL);
+WebServer server(80);
 
 enum ScheduleType : uint8_t {
   SCHED_FEEDER,
@@ -90,9 +92,13 @@ byte lastRawButtonState = 0b01111111; // Only use 7 bit
 unsigned long lastDebounceTime = 0;
 unsigned long lastPCFReadTime = 0;
 unsigned long lastNTPSyncMillis = 0;
+unsigned long connectStart = 0;
 
 byte actuatorState = 0b00000111; // Only use 3 bit for now
 byte lastActuatorState = 0b00000111; // Only use 3 bit for now
+
+char ssid[32];
+char pass[64];
 
 void initializeButtons (void);
 void initializeRelays (void);
@@ -116,6 +122,12 @@ void printSDCardInfo (void);
 void loadScheduleFromSDCard (void);
 ScheduleType parseScheduleType (const char* str);
 bool syncRTCWithNTP(bool force = false);
+
+void readEEPROM();
+void writeEEPROM(const char* newSsid, const char* newPass);
+bool connectWiFi();
+String configPage();
+void startConfigAP();
 
 void startPump (void);
 void stopPump (void);
@@ -749,4 +761,95 @@ void checkAndSyncRTCOnBoot(void) {
         Serial.println(F("RTC time is acceptable. No update needed."));
         printCurrentTime();
     }
+}
+
+void readEEPROM() {
+  EEPROM.begin(EEPROM_SIZE);
+  EEPROM.get(SSID_ADDR, ssid);
+  EEPROM.get(PASS_ADDR, pass);
+  EEPROM.end();
+}
+
+void writeEEPROM(const char* newSsid, const char* newPass) {
+  EEPROM.begin(EEPROM_SIZE);
+  memset(ssid, 0, sizeof(ssid));
+  memset(pass, 0, sizeof(pass));
+
+  strncpy(ssid, newSsid, sizeof(ssid) - 1);
+  strncpy(pass, newPass, sizeof(pass) - 1);
+
+  EEPROM.put(SSID_ADDR, ssid);
+  EEPROM.put(PASS_ADDR, pass);
+  EEPROM.commit();
+  EEPROM.end();
+}
+
+String configPage() {
+  return R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head><title>ESP8266 WiFi Setup</title></head>
+<body>
+  <h2>WiFi Configuration</h2>
+  <form action="/save" method="POST">
+    SSID:<br>
+    <input type="text" name="ssid"><br>
+    Password:<br>
+    <input type="password" name="pass"><br><br>
+    <input type="submit" value="Save">
+  </form>
+</body>
+</html>
+)rawliteral";
+}
+
+bool connectWiFi() {
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, pass);
+
+  Serial.print("Connecting to WiFi");
+  connectStart = millis();
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+
+    if (millis() - connectStart > WIFI_TIMEOUT) {
+      Serial.println("\nWiFi Timeout!");
+      return false;
+    }
+  }
+
+  Serial.println("\nConnected!");
+  Serial.print("IP: ");
+  Serial.println(WiFi.localIP());
+  return true;
+}
+
+void startConfigAP() {
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP("ESP8266_Setup");
+
+  Serial.println("AP Mode Started");
+  Serial.print("AP IP: ");
+  Serial.println(WiFi.softAPIP());
+
+  server.on("/", []() {
+    server.send(200, "text/html", configPage());
+  });
+
+  server.on("/save", HTTP_POST, []() {
+    String newSsid = server.arg("ssid");
+    String newPass = server.arg("pass");
+
+    writeEEPROM(newSsid.c_str(), newPass.c_str());
+
+    server.send(200, "text/html",
+      "<h3>Saved! Rebooting...</h3>");
+
+    delay(2000);
+    ESP.restart();
+  });
+
+  server.begin();
 }

@@ -828,7 +828,7 @@ bool connectWiFi() {
 
 void startConfigAP() {
   WiFi.mode(WIFI_AP);
-  WiFi.softAP("ESP8266_Setup");
+  WiFi.softAP("ESP32S3_SmartPetCage");
 
   Serial.println("AP Mode Started");
   Serial.print("AP IP: ");

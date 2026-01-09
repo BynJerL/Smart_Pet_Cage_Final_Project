@@ -152,7 +152,8 @@ void setup () {
     if (strlen(ssid) > 0) {
         Serial.println(F("Found saved WiFi credentials"));
         if (connectWiFi()) {
-            Serial.println(F("WiFi connected using stored credentials"));
+            Serial.print(F("WiFi connected using stored credentials: "));
+            Serial.println(ssid);
         } else {
             Serial.println(F("WiFi failed, entering config mode"));
             isConfigMode = true;
@@ -818,7 +819,7 @@ String configPage() {
   return R"rawliteral(
 <!DOCTYPE html>
 <html>
-<head><title>ESP8266 WiFi Setup</title></head>
+<head><title>🏠 Smart Pet Cage WiFi Setup</title></head>
 <body>
   <h2>WiFi Configuration</h2>
   <form action="/save" method="POST">
@@ -827,6 +828,9 @@ String configPage() {
     Password:<br>
     <input type="password" name="pass"><br><br>
     <input type="submit" value="Save">
+  </form>
+  <form action="/retry" method="post">
+    <button type="submit">Retry Saved WiFi</button>
   </form>
 </body>
 </html>
@@ -878,6 +882,12 @@ void startConfigAP() {
       "<h3>Saved! Rebooting...</h3>");
 
     delay(2000);
+    ESP.restart();
+  });
+
+  server.on("/retry", HTTP_POST, []() {
+    server.send(200, "text/plain", "Rebooting...");
+    delay(200);
     ESP.restart();
   });
 

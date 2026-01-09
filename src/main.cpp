@@ -82,6 +82,8 @@ ScheduleSlot schedules[MAX_SCHEDULES];
 bool rtcInitialized = false;
 bool sdInitialized = false;
 bool ntpInitialized = false;
+bool isConfigMode = false;
+bool scheduleResetDone = false;
 
 byte buttonState = 0b01111111; // Only use 7 bit
 byte lastButtonState = 0b01111111; // Only use 7 bit
@@ -139,7 +141,31 @@ void setup () {
     initializeButtons();
     initializeRelays();
     initializeFeeder();
-    initializeWiFi();
+
+    /* WiFi Setup */ 
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect(true);
+    delay(100);
+    
+    readEEPROM();
+
+    if (strlen(ssid) > 0) {
+        Serial.println(F("Found saved WiFi credentials"));
+        if (connectWiFi()) {
+            Serial.println(F("WiFi connected using stored credentials"));
+        } else {
+            Serial.println(F("WiFi failed, entering config mode"));
+            isConfigMode = true;
+            startConfigAP();
+            return; // stop normal boot
+        }
+    } else {
+        Serial.println(F("No WiFi credentials found"));
+        isConfigMode = true;
+        startConfigAP();
+        return;
+    }
+
     initializeNTP();
     initializeRTC();
     checkAndSyncRTCOnBoot();
@@ -148,11 +174,15 @@ void setup () {
 }
 
 void loop () {
-    readRawButtonInput();
-    updateButtonInput();
-    checkRelayActivity();
-    checkScheduleExecution();
-    checkSerialCommand();
+    if (isConfigMode) {
+        server.handleClient();
+    } else {
+        readRawButtonInput();
+        updateButtonInput();
+        checkRelayActivity();
+        checkScheduleExecution();
+        checkSerialCommand();
+    }
 }
 
 void initializeButtons (void) {
@@ -542,6 +572,11 @@ void loadScheduleFromSDCard (void) {
 
     Serial.println(F("Reading schedule.csv..."));
 
+    for (uint8_t i = 0; i < MAX_SCHEDULES; i++) {
+        schedules[i].enabled = false;
+        schedules[i].executed = false;
+    }
+
     uint8_t index = 0;
     char line[32];
     file.readStringUntil('\n');
@@ -600,11 +635,8 @@ void checkScheduleExecution(void) {
     // Reset execution flags at midnight
     if (now.hour() == 0 && now.minute() == 0) {
         resetScheduleExecutionAtMidnight();
-    }
-
-    if (now.hour() != 0 || now.minute() != 0) {
-        static bool alreadyReset = false;
-        alreadyReset = false;
+    } else {
+        scheduleResetDone = false;
     }
 
     for (uint8_t i = 0; i < MAX_SCHEDULES; i++) {
@@ -627,14 +659,12 @@ void checkScheduleExecution(void) {
 }
 
 void resetScheduleExecutionAtMidnight(void) {
-    static bool alreadyReset = false;
-
-    if (!alreadyReset) {
+    if (!scheduleResetDone) {
         Serial.println(F("Midnight reached. Resetting schedules."));
         for (uint8_t i = 0; i < MAX_SCHEDULES; i++) {
             schedules[i].executed = false;
         }
-        alreadyReset = true;
+        scheduleResetDone = true;
     }
 }
 

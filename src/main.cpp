@@ -131,6 +131,7 @@ bool syncRTCWithNTP (bool force = false);
 bool updateScheduleFromCloud (void);
 void applyRelayState (void);
 void printScheduleFromFirebase (void);
+bool loadScheduleFromFirebaseToRAM (void);
 void printSerialCommandList (void);
 
 void readEEPROM();
@@ -481,6 +482,9 @@ void checkSerialCommand (void) {
                 break;
             case 'f':
                 printScheduleFromFirebase();
+                break;
+            case 'r':
+                loadScheduleFromFirebaseToRAM();
                 break;
             case 'i':
                 printSerialCommandList();
@@ -1027,7 +1031,10 @@ void printScheduleFromFirebase(void) {
                 int q2 = payload.indexOf("\"", q1 + 1);
 
                 if (q1 != -1 && q2 != -1) {
-                    time = payload.substring(q1 + 1, q2);
+                    String extracted = payload.substring(q1 + 1, q2);
+                    if (extracted.length() > 0) {
+                        time = extracted;
+                    }
                 }
             }
 
@@ -1045,6 +1052,87 @@ void printScheduleFromFirebase(void) {
     Serial.println(F("[Firebase] Schedule read complete."));
 }
 
+bool loadScheduleFromFirebaseToRAM(void) {
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println(F("[Firebase] WiFi not connected"));
+        return false;
+    }
+
+    Serial.println(F("[Firebase] Loading schedules into RAM..."));
+
+    // Clear RAM first
+    for (int i = 0; i < MAX_SCHEDULES; i++) {
+        schedules[i].enabled = false;
+        schedules[i].executed = false;
+        schedules[i].time[0] = '\0';
+    }
+
+    const char* types[] = { "feeder", "water" };
+
+    for (int t = 0; t < 2; t++) {
+        ScheduleType schedType = (t == 0) ? SCHED_FEEDER : SCHED_WATER;
+
+        for (int slot = 1; slot <= 4; slot++) {
+            String url = String(FIREBASE_URL) +
+                         "/schedules/" + types[t] +
+                         "/" + slot + ".json";
+
+            http.begin(fbClient, url);
+            int code = http.GET();
+
+            if (code != HTTP_CODE_OK) {
+                Serial.print(F("[Firebase] HTTP error "));
+                Serial.println(code);
+                http.end();
+                continue;
+            }
+
+            String payload = http.getString();
+            http.end();
+
+            // ---------- Parse ENABLED ----------
+            bool enabled = payload.indexOf("\"enabled\":\"true\"") > 0;
+
+            // ---------- Parse TIME ----------
+            String time = "--:--";
+            int timePos = payload.indexOf("\"time\"");
+            if (timePos != -1) {
+                int colon = payload.indexOf(":", timePos);
+                int q1 = payload.indexOf("\"", colon + 1);
+                int q2 = payload.indexOf("\"", q1 + 1);
+
+                if (q1 != -1 && q2 != -1) {
+                    String extracted = payload.substring(q1 + 1, q2);
+                    if (extracted.length() == 5) {
+                        time = extracted;
+                    }
+                }
+            }
+
+            // ---------- Write to RAM ----------
+            int index = (schedType == SCHED_FEEDER ? 0 : 4) + (slot - 1);
+
+            schedules[index].enabled = enabled;
+            schedules[index].type = schedType;
+            strncpy(schedules[index].time, time.c_str(), 6);
+            schedules[index].executed = false;
+
+            // ---------- Debug ----------
+            Serial.print(F("[RAM] "));
+            Serial.print(types[t]);
+            Serial.print(F(" #"));
+            Serial.print(slot);
+            Serial.print(F(" | "));
+            Serial.print(enabled ? F("ENABLED") : F("DISABLED"));
+            Serial.print(F(" | "));
+            Serial.println(time);
+        }
+    }
+
+    Serial.println(F("[Firebase] RAM schedule load complete"));
+    return true;
+}
+
 void printSerialCommandList (void) {
     // Printing available serial commands
     Serial.println(F("=== Serial Command List ==="));
@@ -1057,5 +1145,6 @@ void printSerialCommandList (void) {
     Serial.println(F("n - Sync RTC with NTP"));
     Serial.println(F("u - Update Schedule from Cloud"));
     Serial.println(F("f - Print Schedule from Firebase"));
+    Serial.println(F("r - Load Schedule from Firebase to RAM"));
     Serial.println(F("i - Print this Command List"));
 }

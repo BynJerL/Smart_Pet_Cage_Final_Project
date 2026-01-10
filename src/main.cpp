@@ -130,6 +130,8 @@ ScheduleType parseScheduleType (const char* str);
 bool syncRTCWithNTP (bool force = false);
 bool updateScheduleFromCloud (void);
 void applyRelayState (void);
+void printScheduleFromFirebase (void);
+void printSerialCommandList (void);
 
 void readEEPROM();
 void writeEEPROM(const char* newSsid, const char* newPass);
@@ -474,15 +476,21 @@ void checkSerialCommand (void) {
                 Serial.println(F("Updating schedule from cloud..."));
                 updateScheduleFromCloud();
                 break;
-            case 'd':
-                IPAddress serverIP;
-                if (WiFi.hostByName("pool.ntp.org", serverIP)) {
-                    Serial.print(F("DNS Resolution: pool.ntp.org -> "));
-                    Serial.println(serverIP);
-                } else {
-                    Serial.println(F("DNS Resolution failed for pool.ntp.org"));
-                }
+            case 'f':
+                printScheduleFromFirebase();
                 break;
+            case 'i':
+                printSerialCommandList();
+                break;
+            // case 'd':
+            //     IPAddress serverIP;
+            //     if (WiFi.hostByName("pool.ntp.org", serverIP)) {
+            //         Serial.print(F("DNS Resolution: pool.ntp.org -> "));
+            //         Serial.println(serverIP);
+            //     } else {
+            //         Serial.println(F("DNS Resolution failed for pool.ntp.org"));
+            //     }
+            //     break;
         }
     }
 }
@@ -958,4 +966,70 @@ void applyRelayState (void) {
     pcf2.digitalWrite(GATE_RELAY,   (actuatorState & _BV(GATE_RELAY)) ? HIGH : LOW);
     pcf2.digitalWrite(PUMP_RELAY,   (actuatorState & _BV(PUMP_RELAY)) ? HIGH : LOW);
     pcf2.digitalWrite(FAN_RELAY,    (actuatorState & _BV(FAN_RELAY))  ? HIGH : LOW);
+}
+
+void printScheduleFromFirebase(void) {
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println(F("[Firebase] WiFi not connected."));
+        return;
+    }
+
+    fbClient.setInsecure(); // HTTPS
+
+    const char* types[] = { "feeder", "water" };
+
+    for (uint8_t t = 0; t < 2; t++) {
+        Serial.println();
+        Serial.print(F("=== "));
+        Serial.print(types[t]);
+        Serial.println(F(" schedules ==="));
+
+        for (uint8_t i = 1; i <= 4; i++) {
+            String url = String(FIREBASE_URL)
+                       + "smartCage/schedules/"
+                       + types[t]
+                       + "/"
+                       + i
+                       + ".json";
+
+            if (strlen(FIREBASE_AUTH) > 0) {
+                url += "?auth=";
+                url += FIREBASE_AUTH;
+            }
+
+            http.begin(fbClient, url);
+            int httpCode = http.GET();
+
+            if (httpCode != HTTP_CODE_OK) {
+                Serial.print(F("#"));
+                Serial.print(i);
+                Serial.print(F(" ERROR "));
+                Serial.println(httpCode);
+                http.end();
+                continue;
+            }
+
+            String payload = http.getString();
+            http.end();
+
+            // Expected: {"enabled":"true","time":"07:00"}
+            bool enabled = payload.indexOf("\"enabled\":\"true\"") != -1;
+
+            int timePos = payload.indexOf("\"time\":\"");
+            String time = "--:--";
+            if (timePos != -1) {
+                time = payload.substring(timePos + 8, timePos + 13);
+            }
+
+            Serial.print(F("#"));
+            Serial.print(i);
+            Serial.print(F(" | "));
+            Serial.print(enabled ? F("ENABLED") : F("DISABLED"));
+            Serial.print(F(" | "));
+            Serial.println(time);
+        }
+    }
+
+    Serial.println();
+    Serial.println(F("[Firebase] Schedule read complete."));
 }

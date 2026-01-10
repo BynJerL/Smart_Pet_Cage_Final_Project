@@ -180,6 +180,9 @@ void setup () {
     checkAndSyncRTCOnBoot();
     initializeSDCardReader();
     loadScheduleFromSDCard();
+
+    Serial.println(F("Setup completed."));
+    Serial.println(F("Try to tap the buttons or send \'i\' to check available commands."));
 }
 
 void loop () {
@@ -1032,4 +1035,19 @@ void printScheduleFromFirebase(void) {
 
     Serial.println();
     Serial.println(F("[Firebase] Schedule read complete."));
+}
+
+void printSerialCommandList (void) {
+    // Printing available serial commands
+    Serial.println(F("=== Serial Command List ==="));
+    Serial.println(F("1 - Toggle Gate Relay"));
+    Serial.println(F("2 - Activate Pump Relay"));
+    Serial.println(F("3 - Toggle Fan Relay"));
+    Serial.println(F("4 - Activate Feeder"));
+    Serial.println(F("t - Print Current Time"));
+    Serial.println(F("s - Print Schedule"));
+    Serial.println(F("n - Sync RTC with NTP"));
+    Serial.println(F("u - Update Schedule from Cloud"));
+    Serial.println(F("f - Print Schedule from Firebase"));
+    Serial.println(F("i - Print this Command List"));
 }

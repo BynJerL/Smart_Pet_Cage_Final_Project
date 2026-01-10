@@ -127,8 +127,9 @@ void printSchedule (void);
 void printSDCardInfo (void);
 void loadScheduleFromSDCard (void);
 ScheduleType parseScheduleType (const char* str);
-bool syncRTCWithNTP(bool force = false);
-bool updateScheduleFromCloud(void);
+bool syncRTCWithNTP (bool force = false);
+bool updateScheduleFromCloud (void);
+void applyRelayState (void);
 
 void readEEPROM();
 void writeEEPROM(const char* newSsid, const char* newPass);
@@ -951,4 +952,10 @@ bool updateScheduleFromCloud(void) {
 
     Serial.println(F("[Cloud] Schedule update complete."));
     return true;
+}
+
+void applyRelayState (void) {
+    pcf2.digitalWrite(GATE_RELAY,   (actuatorState & _BV(GATE_RELAY)) ? HIGH : LOW);
+    pcf2.digitalWrite(PUMP_RELAY,   (actuatorState & _BV(PUMP_RELAY)) ? HIGH : LOW);
+    pcf2.digitalWrite(FAN_RELAY,    (actuatorState & _BV(FAN_RELAY))  ? HIGH : LOW);
 }

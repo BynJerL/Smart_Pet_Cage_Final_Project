@@ -989,7 +989,7 @@ void printScheduleFromFirebase(void) {
 
         for (uint8_t i = 1; i <= 4; i++) {
             String url = String(FIREBASE_URL)
-                       + "smartCage/schedules/"
+                       + "/schedules/"
                        + types[t]
                        + "/"
                        + i
@@ -1016,13 +1016,21 @@ void printScheduleFromFirebase(void) {
             http.end();
 
             // Expected: {"enabled":"true","time":"07:00"}
-            bool enabled = payload.indexOf("\"enabled\":\"true\"") != -1;
+            bool enabled = payload.indexOf("\"enabled\":\"true\"") > 0;
 
-            int timePos = payload.indexOf("\"time\":\"");
+            int timePos = payload.indexOf("\"time\"");
             String time = "--:--";
+
             if (timePos != -1) {
-                time = payload.substring(timePos + 8, timePos + 13);
+                int colon = payload.indexOf(":", timePos);
+                int q1 = payload.indexOf("\"", colon + 1);
+                int q2 = payload.indexOf("\"", q1 + 1);
+
+                if (q1 != -1 && q2 != -1) {
+                    time = payload.substring(q1 + 1, q2);
+                }
             }
+
 
             Serial.print(F("#"));
             Serial.print(i);

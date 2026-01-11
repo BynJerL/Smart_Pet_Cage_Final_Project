@@ -55,10 +55,12 @@
 #define SSID_ADDR 0
 #define PASS_ADDR 32
 
+// Default Alert System Threshold
 #define DEF_HIGH_TEMP_THRESHOLD 31
 #define DEF_LOW_TEMP_THRESHOLD  20
 #define DEF_HIGH_HUM_THRESHOLD  75
 #define DEF_LOW_HUM_THRESHOLD   45
+#define MOTION_ALERT_ENABLED    false   // We don't need to alert this for now
 
 PCF8574 pcf1(PCF8574_ADDRESS_1);
 PCF8574 pcf2(PCF8574_ADDRESS_2);
@@ -127,6 +129,18 @@ float bmpPressure = 0.0;
 float bmpAltitude = 0.0; 
 bool motionDetected = false;
 
+/* Threshold Storage (Use default for now) */ 
+float tempHighThreshold = DEF_HIGH_TEMP_THRESHOLD;
+float tempLowThreshold = DEF_LOW_TEMP_THRESHOLD;
+float humHighThreshold = DEF_HIGH_HUM_THRESHOLD;
+float humLowThreshold = DEF_LOW_HUM_THRESHOLD; 
+
+bool tempHighAlertActive = false;
+bool tempLowAlertActive = false;
+bool humHighAlertActive = false;
+bool humLowAlertActive = false;
+bool motionAlertActive = false;
+
 void initializeButtons (void);
 void initializeRelays (void);
 void initializeFeeder (void); // Not yet implemented now
@@ -158,6 +172,7 @@ void applyRelayState (void);
 void printScheduleFromFirebase (void);
 bool loadScheduleFromFirebaseToRAM (void);
 void printSerialCommandList (void);
+void checkAlerts (void);
 
 void readEEPROM();
 void writeEEPROM(const char* newSsid, const char* newPass);
@@ -1237,6 +1252,8 @@ void readSensorsData (void) {
     readAHTdata();
     readBMPdata();
     readMotionSensorData();
+
+    checkAlerts();
 }
 
 void showSavedAHTdata (void) {
@@ -1268,4 +1285,66 @@ void showSensorsData (void) {
     showSavedAHTdata();
     showSavedBMPdata();
     showMotionSensorData();
+}
+
+void checkAlerts (void) {
+    /* Temperature */ 
+    if (ahtTemperature >= tempHighThreshold) {
+        if (!tempHighAlertActive) {
+            Serial.println(F("[ALERT] Temperature TOO HIGH!"));
+            Serial.print(F(" Value: "));
+            Serial.print(ahtTemperature);
+            Serial.println(F(" °C"));
+            tempHighAlertActive = true;
+        }
+    } else {
+        tempHighAlertActive = false;
+    }
+
+    if (ahtTemperature <= tempLowThreshold) {
+        if (!tempLowAlertActive) {
+            Serial.println(F("[ALERT] Temperature TOO LOW!"));
+            Serial.print(F("  Value: "));
+            Serial.print(ahtTemperature);
+            Serial.println(F(" °C"));
+            tempLowAlertActive = true;
+        }
+    } else {
+        tempLowAlertActive = false;
+    }
+
+    /* Humidity */ 
+    if (ahtHumidity >= humHighThreshold) {
+        if (!humHighAlertActive) {
+            Serial.println(F("[ALERT] Humidity TOO HIGH!"));
+            Serial.print(F("  Value: "));
+            Serial.print(ahtHumidity);
+            Serial.println(F(" %"));
+            humHighAlertActive = true;
+        }
+    } else {
+        humHighAlertActive = false;
+    }
+
+    if (ahtHumidity <= humLowThreshold) {
+        if (!humLowAlertActive) {
+            Serial.println(F("[ALERT] Humidity TOO LOW!"));
+            Serial.print(F("  Value: "));
+            Serial.print(ahtHumidity);
+            Serial.println(F(" %"));
+            humLowAlertActive = true;
+        }
+    } else {
+        humLowAlertActive = false;
+    }
+
+    /* Motion */
+    if (MOTION_ALERT_ENABLED && motionDetected) {
+        if (!motionAlertActive) {
+            Serial.println(F("[ALERT] Motion detected inside cage!"));
+            motionAlertActive = true;
+        }
+    } else {
+        motionAlertActive = false;
+    }
 }

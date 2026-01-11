@@ -200,6 +200,7 @@ void checkAlerts (void);
 void handleMenuNavigation (int direction);
 void renderMenuUI (void);
 void updateDisplayUI (void);
+bool saveScheduleToSDCard (void);
 
 void readEEPROM();
 void writeEEPROM(const char* newSsid, const char* newPass);
@@ -584,6 +585,12 @@ void checkSerialCommand (void) {
                 break;
             case 'r':
                 loadScheduleFromFirebaseToRAM();
+                break;
+            case 'l':
+                loadScheduleFromSDCard();
+                break;
+            case 'w':
+                saveScheduleToSDCard();
                 break;
             case 'y':
                 showSensorsData();
@@ -1424,4 +1431,51 @@ void toggleFan(void) {
     actuatorState ^= _BV(FAN_RELAY);
     applyRelayState();
     Serial.println(F("Fan toggled"));
+}
+
+bool saveScheduleToSDCard (void) {
+    if (!sdInitialized) {
+        Serial.println(F("[SD] SD not initialized. Cannot save schedule."));
+        return false;
+    }
+
+    // Delete existing file first to ensure clean write
+    if (SD.exists("/schedule.csv")) {
+        SD.remove("/schedule.csv");
+    }
+
+    File file = SD.open("/schedule.csv", FILE_WRITE);
+    if (!file) {
+        Serial.println(F("[SD] Failed to open schedule.csv for writing."));
+        return false;
+    }
+
+    // Header
+    file.println(F("enabled,type,time"));
+
+    uint8_t count = 0;
+
+    for (uint8_t i = 0; i < MAX_SCHEDULES; i++) {
+        if (!schedules[i].enabled) continue;
+
+        file.print(schedules[i].enabled ? '1' : '0');
+        file.print(',');
+
+        file.print(
+            schedules[i].type == SCHED_FEEDER ? F("FEEDER") : F("WATER")
+        );
+        file.print(',');
+
+        file.println(schedules[i].time);
+
+        count++;
+    }
+
+    file.close();
+
+    Serial.print(F("[SD] Schedule saved successfully ("));
+    Serial.print(count);
+    Serial.println(F(" entries)."));
+
+    return true;
 }

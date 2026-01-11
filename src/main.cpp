@@ -14,6 +14,7 @@
 #include <WiFiClientSecure.h>
 #include <Adafruit_AHTX0.h>
 #include <Adafruit_BMP280.h>
+#include <LiquidCrystal_I2C.h>
 
 #define L_BUTTON      P0
 #define C_BUTTON      P1
@@ -62,6 +63,9 @@
 #define DEF_LOW_HUM_THRESHOLD   45
 #define MOTION_ALERT_ENABLED    false   // We don't need to alert this for now
 
+#define LCD_ROW 2
+#define LCD_COL 16
+
 PCF8574 pcf1(PCF8574_ADDRESS_1);
 PCF8574 pcf2(PCF8574_ADDRESS_2);
 RTC_DS3231 rtc;
@@ -73,6 +77,7 @@ WiFiClientSecure fbClient;
 HTTPClient http;
 Adafruit_AHTX0 aht;
 Adafruit_BMP280 bmp;
+LiquidCrystal_I2C lcd(0x27, LCD_COL, LCD_ROW);
 
 enum ScheduleType : uint8_t {
   SCHED_FEEDER,
@@ -148,6 +153,7 @@ void initializeAHT (void);
 void initializeBMP (void);
 void initializeMotionSensor (void);
 void initializeSensors (void);
+void initializeDisplay (void);
 void initializeRTC (void);
 void initializeSDCardReader (void);
 void initializeWiFi (void);
@@ -200,6 +206,7 @@ void setup () {
     initializeRelays();
     initializeFeeder();
     initializeSensors();
+    initializeDisplay();
 
     /* WiFi Setup */ 
     WiFi.mode(WIFI_STA);
@@ -372,6 +379,11 @@ void initializeMotionSensor (void) {
 void initializeSensors (void) {
     initializeAHT();
     initializeBMP();
+}
+void initializeDisplay (void) {
+    lcd.init();
+    lcd.backlight();
+    Serial.println(F("LCD Display initialized successfully."));
 }
 
 void readRawButtonInput (void) {

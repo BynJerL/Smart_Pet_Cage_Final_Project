@@ -40,6 +40,7 @@
 #define FEEDER_ACTIVE_DUR   2500
 #define DEBOUNCE_DELAY_MS     50              // Debounce delay for button press
 #define PCF_READ_INTERVAL_MS  30
+#define SENSOR_READ_INTERVAL_MS 2000
 
 #define TIMEZONE_OFFSET_SEC (7 * 3600)
 #define NTP_SYNC_INTERVAL (6UL * 60UL * 60UL * 1000UL)
@@ -92,6 +93,8 @@ bool sdInitialized = false;
 bool ntpInitialized = false;
 bool isConfigMode = false;
 bool scheduleResetDone = false;
+bool ahtInitialized = false;
+bool bmpInitialized = false;
 
 byte buttonState = 0b01111111; // Only use 7 bit
 byte lastButtonState = 0b01111111; // Only use 7 bit
@@ -103,6 +106,7 @@ unsigned long lastDebounceTime = 0;
 unsigned long lastPCFReadTime = 0;
 unsigned long lastNTPSyncMillis = 0;
 unsigned long connectStart = 0;
+unsigned long lastSensorReadTime = 0;
 
 byte actuatorState = 0b00000111; // Only use 3 bit for now
 byte lastActuatorState = 0b00000111; // Only use 3 bit for now
@@ -110,9 +114,18 @@ byte lastActuatorState = 0b00000111; // Only use 3 bit for now
 char ssid[32];
 char pass[64];
 
+/* Sensors Data */
+float ahtTemperature = 0.0;
+float ahtHumidity = 0.0;
+float bmpPressure = 0.0;
+float bmpAltitude = 0.0; 
+
 void initializeButtons (void);
 void initializeRelays (void);
 void initializeFeeder (void); // Not yet implemented now
+void initializeAHT (void);
+void initializeBMP (void);
+void initializeSensors (void);
 void initializeRTC (void);
 void initializeSDCardReader (void);
 void initializeWiFi (void);
@@ -149,11 +162,19 @@ void stopPump (void);
 void startFeeder (void);
 void stopFeeder (void); 
 
+void readAHTdata (void);
+void readBMPdata (void);
+void readSensorsData (void);
+void showSavedAHTdata (void);
+void showSavedBMPdata (void);
+void showSensorsData (void);
+
 void setup () {
     Serial.begin(115200);
     initializeButtons();
     initializeRelays();
     initializeFeeder();
+    initializeSensors();
 
     /* WiFi Setup */ 
     WiFi.mode(WIFI_STA);
@@ -196,6 +217,7 @@ void loop () {
     checkRelayActivity();
     checkScheduleExecution();
     checkSerialCommand();
+    readSensorsData();
 
     if (isConfigMode) {
         server.handleClient();
@@ -301,6 +323,26 @@ void initializeNTP (void) {
     ntpInitialized = true;
     lastNTPSyncMillis = millis();
     Serial.println(F("NTP Client initialized successfully."));
+}
+void initializeAHT (void) {
+    if (!aht.begin()) {
+        Serial.println(F("ERROR: Could not initialize AHT20 sensor! Check wiring and connections."));
+        return;
+    }
+    ahtInitialized = true;
+    Serial.println(F("AHT20 sensor initialized successfully."));
+}
+void initializeBMP (void) {
+    if (!bmp.begin(0x77)) {
+        Serial.println(F("ERROR: Could not initialize BMP280 sensor! Check wiring and connections."));
+        return;
+    }
+    bmpInitialized = true;
+    Serial.println(F("BMP280 sensor initialized successfully."));
+}
+void initializeSensors (void) {
+    initializeAHT();
+    initializeBMP();
 }
 
 void readRawButtonInput (void) {
@@ -489,6 +531,9 @@ void checkSerialCommand (void) {
                 break;
             case 'r':
                 loadScheduleFromFirebaseToRAM();
+                break;
+            case 'y':
+                showSensorsData();
                 break;
             case 'i':
                 printSerialCommandList();
@@ -1151,4 +1196,50 @@ void printSerialCommandList (void) {
     Serial.println(F("f - Print Schedule from Firebase"));
     Serial.println(F("r - Load Schedule from Firebase to RAM"));
     Serial.println(F("i - Print this Command List"));
+}
+
+void readAHTdata (void) {
+    sensors_event_t humidity, temp;
+    aht.getEvent(&humidity, &temp);
+
+    ahtTemperature = temp.temperature;
+    ahtHumidity = humidity.relative_humidity;
+}
+
+void readBMPdata (void) {
+    bmpPressure = bmp.readPressure() / 100.0F; // Convert to hPa
+    bmpAltitude = bmp.readAltitude();
+}
+
+void readSensorsData (void) {
+    if (!ahtInitialized || !bmpInitialized) return;
+    if (millis() - lastSensorReadTime < SENSOR_READ_INTERVAL_MS) return;
+    lastSensorReadTime = millis();
+    readAHTdata();
+    readBMPdata();
+}
+
+void showSavedAHTdata (void) {
+    Serial.print(F("AHT20 Temperature: "));
+    Serial.print(ahtTemperature);
+    Serial.println(F(" °C"));
+
+    Serial.print(F("AHT20 Humidity: "));
+    Serial.print(ahtHumidity);
+    Serial.println(F(" %"));
+}
+
+void showSavedBMPdata (void) {
+    Serial.print(F("BMP280 Pressure: "));
+    Serial.print(bmpPressure);
+    Serial.println(F(" hPa"));
+
+    Serial.print(F("BMP280 Altitude: "));
+    Serial.print(bmpAltitude);
+    Serial.println(F(" m"));
+}
+
+void showSensorsData (void) {
+    showSavedAHTdata();
+    showSavedBMPdata();
 }

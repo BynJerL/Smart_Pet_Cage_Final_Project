@@ -210,7 +210,10 @@ void startConfigAP();
 void startPump (void);
 void stopPump (void);
 void startFeeder (void);
-void stopFeeder (void); 
+void stopFeeder (void);
+
+void toggleGate (void);
+void toggleFan (void);
 
 void readAHTdata (void);
 void readBMPdata (void);
@@ -477,11 +480,7 @@ void checkButtonStateChange (void) {
         if ((buttonState & _BV(GATE_BUTTON)) != (lastButtonState & _BV(GATE_BUTTON))) {
             if (!(buttonState & _BV(GATE_BUTTON))) {
                 Serial.println(F("Gate Button Pressed."));
-                if (actuatorState & _BV(GATE_RELAY)) {
-                    actuatorState &= ~_BV(GATE_RELAY);
-                } else {
-                    actuatorState |= _BV(GATE_RELAY);
-                }
+                toggleGate();
             } else {
                 Serial.println(F("Gate Button Released."));
             }
@@ -499,11 +498,7 @@ void checkButtonStateChange (void) {
         if ((buttonState & _BV(FAN_BUTTON)) != (lastButtonState & _BV(FAN_BUTTON))) {
             if (!(buttonState & _BV(FAN_BUTTON))) {
                 Serial.println(F("Fan Button Pressed."));
-                if (actuatorState & _BV(FAN_RELAY)) {
-                    actuatorState &= ~_BV(FAN_RELAY);
-                } else {
-                    actuatorState |= _BV(FAN_RELAY);
-                }
+                toggleFan();
             } else {
                 Serial.println(F("Fan Button Released."));
             }
@@ -542,11 +537,7 @@ void checkSerialCommand (void) {
 
         switch (cmd) {
             case '1': 
-                if (actuatorState & _BV(GATE_RELAY)) {
-                    actuatorState &= ~_BV(GATE_RELAY);
-                } else {
-                    actuatorState |= _BV(GATE_RELAY);
-                }
+                toggleGate();
                 Serial.println(F("Gate Relay Toggled."));
                 break;
             case '2':
@@ -554,11 +545,7 @@ void checkSerialCommand (void) {
                 Serial.println(F("Pump Relay Activated."));
                 break;
             case '3':
-                if (actuatorState & _BV(FAN_RELAY)) {
-                    actuatorState &= ~_BV(FAN_RELAY);
-                } else {
-                    actuatorState |= _BV(FAN_RELAY);
-                }
+                toggleFan();
                 Serial.println(F("Fan Relay Toggled."));
                 break;
             case '4':
@@ -1425,4 +1412,16 @@ void updateDisplayUI (void) {
     menuDirty = false;
 
     renderMenuUI();
+}
+
+void toggleGate(void) {
+    actuatorState ^= _BV(GATE_RELAY);
+    applyRelayState();
+    Serial.println(F("Gate toggled"));
+}
+
+void toggleFan(void) {
+    actuatorState ^= _BV(FAN_RELAY);
+    applyRelayState();
+    Serial.println(F("Fan toggled"));
 }

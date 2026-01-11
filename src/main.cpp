@@ -43,6 +43,7 @@
 #define DEBOUNCE_DELAY_MS     50              // Debounce delay for button press
 #define PCF_READ_INTERVAL_MS  30
 #define SENSOR_READ_INTERVAL_MS 2000
+#define UI_REFRESH_INTERVAL_MS 200
 
 #define TIMEZONE_OFFSET_SEC (7 * 3600)
 #define NTP_SYNC_INTERVAL (6UL * 60UL * 60UL * 1000UL)
@@ -84,6 +85,13 @@ enum ScheduleType : uint8_t {
   SCHED_WATER
 };
 
+enum MenuID : uint8_t {
+    MENU_SHOW_DATA = 0,
+    MENU_CHECK_SCHEDULE,
+    MENU_MANUAL_SCHEDULE,
+    MENU_COUNT
+};
+
 struct ScheduleSlot {
   bool enabled;
   ScheduleType type;
@@ -120,6 +128,7 @@ unsigned long lastPCFReadTime = 0;
 unsigned long lastNTPSyncMillis = 0;
 unsigned long connectStart = 0;
 unsigned long lastSensorReadTime = 0;
+unsigned long lastUIUpdate = 0;
 
 byte actuatorState = 0b00000111; // Only use 3 bit for now
 byte lastActuatorState = 0b00000111; // Only use 3 bit for now
@@ -145,6 +154,15 @@ bool tempLowAlertActive = false;
 bool humHighAlertActive = false;
 bool humLowAlertActive = false;
 bool motionAlertActive = false;
+
+const char* menuNames[MENU_COUNT] = {
+    "Show Data",
+    "Check Schedule",
+    "Manual Schedule"
+};
+
+volatile int8_t currentMenu = 0;
+bool menuDirty = true;
 
 void initializeButtons (void);
 void initializeRelays (void);
@@ -179,6 +197,9 @@ void printScheduleFromFirebase (void);
 bool loadScheduleFromFirebaseToRAM (void);
 void printSerialCommandList (void);
 void checkAlerts (void);
+void handleMenuNavigation (int direction);
+void renderMenuUI (void);
+void updateDisplayUI (void);
 
 void readEEPROM();
 void writeEEPROM(const char* newSsid, const char* newPass);
@@ -254,6 +275,8 @@ void loop () {
     if (isConfigMode) {
         server.handleClient();
     }
+
+    updateDisplayUI();
 }
 
 void initializeButtons (void) {
@@ -428,6 +451,7 @@ void checkButtonStateChange (void) {
         if ((buttonState & _BV(L_BUTTON)) != (lastButtonState & _BV(L_BUTTON))) {
             if (!(buttonState & _BV(L_BUTTON))) {
                 Serial.println(F("L Button Pressed."));
+                handleMenuNavigation(-1);
             } else {
                 Serial.println(F("L Button Released."));
             }
@@ -444,6 +468,7 @@ void checkButtonStateChange (void) {
         if ((buttonState & _BV(R_BUTTON)) != (lastButtonState & _BV(R_BUTTON))) {
             if (!(buttonState & _BV(R_BUTTON))) {
                 Serial.println(F("R Button Pressed."));
+                handleMenuNavigation(+1);
             } else {
                 Serial.println(F("R Button Released."));
             }
@@ -1359,4 +1384,45 @@ void checkAlerts (void) {
     } else {
         motionAlertActive = false;
     }
+}
+
+void handleMenuNavigation (int direction) {
+    currentMenu += direction;
+
+    if (currentMenu < 0) {
+        currentMenu = MENU_COUNT - 1;
+    } else if (currentMenu >= MENU_COUNT) {
+        currentMenu = 0;
+    }
+
+    menuDirty = true;
+}
+
+void renderMenuUI (void) {
+    lcd.clear();
+
+    lcd.setCursor(0, 0);
+    lcd.print("< MENU >");
+
+    lcd.setCursor(0, 1);
+
+    const char* title = menuNames[currentMenu];
+    int len = strlen(title);
+    int padding = (LCD_COL - len) / 2;
+
+    for (int i = 0; i < padding; i++) lcd.print(" ");
+    lcd.print(title);
+}
+
+void updateDisplayUI (void) {
+    unsigned long now = millis();
+
+    if (!menuDirty && (now - lastUIUpdate < UI_REFRESH_INTERVAL_MS)) {
+        return;
+    }
+
+    lastUIUpdate = now;
+    menuDirty = false;
+
+    renderMenuUI();
 }

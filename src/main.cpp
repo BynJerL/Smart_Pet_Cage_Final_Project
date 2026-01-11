@@ -27,6 +27,7 @@
 #define PUMP_RELAY    P1
 #define FAN_RELAY     P2
 #define FEEDER_PIN    4
+#define MOTION_SENSOR_PIN 5
 
 #define SD_CS   10
 #define SD_MOSI 11
@@ -119,12 +120,14 @@ float ahtTemperature = 0.0;
 float ahtHumidity = 0.0;
 float bmpPressure = 0.0;
 float bmpAltitude = 0.0; 
+bool motionDetected = false;
 
 void initializeButtons (void);
 void initializeRelays (void);
 void initializeFeeder (void); // Not yet implemented now
 void initializeAHT (void);
 void initializeBMP (void);
+void initializeMotionSensor (void);
 void initializeSensors (void);
 void initializeRTC (void);
 void initializeSDCardReader (void);
@@ -164,9 +167,11 @@ void stopFeeder (void);
 
 void readAHTdata (void);
 void readBMPdata (void);
+void readMotionSensorData (void);
 void readSensorsData (void);
 void showSavedAHTdata (void);
 void showSavedBMPdata (void);
+void showMotionSensorData (void);
 void showSensorsData (void);
 
 void setup () {
@@ -339,6 +344,10 @@ void initializeBMP (void) {
     }
     bmpInitialized = true;
     Serial.println(F("BMP280 sensor initialized successfully."));
+}
+void initializeMotionSensor (void) {
+    pinMode(MOTION_SENSOR_PIN, INPUT);
+    Serial.println(F("Motion sensor initialized successfully."));
 }
 void initializeSensors (void) {
     initializeAHT();
@@ -1195,6 +1204,7 @@ void printSerialCommandList (void) {
     Serial.println(F("u - Update Schedule from Cloud"));
     Serial.println(F("f - Print Schedule from Firebase"));
     Serial.println(F("r - Load Schedule from Firebase to RAM"));
+    Serial.println(F("y - Show Sensors\' data"));
     Serial.println(F("i - Print this Command List"));
 }
 
@@ -1211,12 +1221,17 @@ void readBMPdata (void) {
     bmpAltitude = bmp.readAltitude();
 }
 
+void readMotionSensorData (void) {
+    motionDetected = digitalRead(MOTION_SENSOR_PIN);
+}
+
 void readSensorsData (void) {
     if (!ahtInitialized || !bmpInitialized) return;
     if (millis() - lastSensorReadTime < SENSOR_READ_INTERVAL_MS) return;
     lastSensorReadTime = millis();
     readAHTdata();
     readBMPdata();
+    readMotionSensorData();
 }
 
 void showSavedAHTdata (void) {
@@ -1239,7 +1254,13 @@ void showSavedBMPdata (void) {
     Serial.println(F(" m"));
 }
 
+void showMotionSensorData (void) {
+    Serial.print(F("Motion detected: "));
+    Serial.println(motionDetected? "TRUE": "FALSE");
+}
+
 void showSensorsData (void) {
     showSavedAHTdata();
     showSavedBMPdata();
+    showMotionSensorData();
 }

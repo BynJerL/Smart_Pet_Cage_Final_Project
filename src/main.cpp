@@ -1256,6 +1256,8 @@ void printSerialCommandList (void) {
     Serial.println(F("f - Print Schedule from Firebase"));
     Serial.println(F("r - Load Schedule from Firebase to RAM"));
     Serial.println(F("y - Show Sensors\' data"));
+    Serial.println(F("w - Force write schedule to SD Card"));
+    Serial.println(F("l - Load Schedule from SD Card to RAM"));
     Serial.println(F("i - Print this Command List"));
 }
 

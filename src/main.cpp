@@ -12,6 +12,8 @@
 #include <WebServer.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
+#include <Adafruit_AHTX0.h>
+#include <Adafruit_BMP280.h>
 
 #define L_BUTTON      P0
 #define C_BUTTON      P1
@@ -60,6 +62,8 @@ NTPClient timeClient(ntpUDP, "pool.ntp.org", TIMEZONE_OFFSET_SEC, NTP_SYNC_INTER
 WebServer server(80);
 WiFiClientSecure fbClient;
 HTTPClient http;
+Adafruit_AHTX0 aht;
+Adafruit_BMP280 bmp;
 
 enum ScheduleType : uint8_t {
   SCHED_FEEDER,

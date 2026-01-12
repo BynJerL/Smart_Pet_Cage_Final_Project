@@ -130,6 +130,7 @@ unsigned long lastNTPSyncMillis = 0;
 unsigned long connectStart = 0;
 unsigned long lastSensorReadTime = 0;
 unsigned long lastUIUpdate = 0;
+unsigned long lastDataPatch = 0;
 
 byte actuatorState = 0b00000111; // Only use 3 bit for now
 byte lastActuatorState = 0b00000111; // Only use 3 bit for now
@@ -203,6 +204,7 @@ void renderMenuUI (void);
 void updateDisplayUI (void);
 bool saveScheduleToSDCard (void);
 void sendSensorDataToFirebase (void);
+void sendSensorDataPeriodically (void);
 void updateSensorThresholdFromFirebase (void);
 
 void readEEPROM();
@@ -1536,6 +1538,12 @@ void sendSensorDataToFirebase (void) {
     }
 
     http.end();
+}
+
+void sendSensorDataPeriodically (void) {
+    if (millis() - lastDataPatch < SENSOR_DATA_PATCH_INTERVAL_MS) return;
+    lastDataPatch = millis();
+    sendSensorDataToFirebase();
 }
 
 void updateSensorThresholdFromFirebase (void) {

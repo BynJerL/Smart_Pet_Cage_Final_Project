@@ -203,6 +203,7 @@ void renderMenuUI (void);
 void updateDisplayUI (void);
 bool saveScheduleToSDCard (void);
 void sendSensorDataToFirebase (void);
+void updateSensorThresholdFromFirebase (void);
 
 void readEEPROM();
 void writeEEPROM(const char* newSsid, const char* newPass);
@@ -599,6 +600,10 @@ void checkSerialCommand (void) {
                 break;
             case 'i':
                 printSerialCommandList();
+                break;
+            case 'p':
+                Serial.println(F("Sending sensor data to Firebase..."));
+                sendSensorDataToFirebase();
                 break;
             // case 'd':
             //     IPAddress serverIP;
@@ -1169,6 +1174,8 @@ bool loadScheduleFromFirebaseToRAM(void) {
         return false;
     }
 
+    fbClient.setInsecure(); // HTTPS
+
     Serial.println(F("[Firebase] Loading schedules into RAM..."));
 
     // Clear RAM first
@@ -1260,6 +1267,7 @@ void printSerialCommandList (void) {
     Serial.println(F("y - Show Sensors\' data"));
     Serial.println(F("w - Force write schedule to SD Card"));
     Serial.println(F("l - Load Schedule from SD Card to RAM"));
+    Serial.println(F("p - Send sensor data to Firebase"));
     Serial.println(F("i - Print this Command List"));
 }
 
@@ -1528,4 +1536,8 @@ void sendSensorDataToFirebase (void) {
     }
 
     http.end();
+}
+
+void updateSensorThresholdFromFirebase (void) {
+    // To be implemented later
 }

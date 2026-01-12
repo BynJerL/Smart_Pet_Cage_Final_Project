@@ -38,18 +38,19 @@
 #define PCF8574_ADDRESS_1 0x20
 #define PCF8574_ADDRESS_2 0x21
 
-#define PUMP_ACTIVE_DUR     3500
-#define FEEDER_ACTIVE_DUR   2500
-#define DEBOUNCE_DELAY_MS     50              // Debounce delay for button press
-#define PCF_READ_INTERVAL_MS  30
-#define SENSOR_READ_INTERVAL_MS 2000
-#define UI_REFRESH_INTERVAL_MS 200
+#define PUMP_ACTIVE_DUR               3500
+#define FEEDER_ACTIVE_DUR             2500
+#define DEBOUNCE_DELAY_MS             50      // Debounce delay for button press
+#define PCF_READ_INTERVAL_MS          30
+#define SENSOR_READ_INTERVAL_MS       2000
+#define UI_REFRESH_INTERVAL_MS        200
+#define SENSOR_DATA_PATCH_INTERVAL_MS 6000    // Keep the system responsive
 
-#define TIMEZONE_OFFSET_SEC (7 * 3600)
-#define NTP_SYNC_INTERVAL (6UL * 60UL * 60UL * 1000UL)
-#define RTC_DRIFT_THRESHOLD_SEC 5
-#define MIN_SYNC_INTERVAL_MS (6UL * 60UL * 60UL * 1000UL) // 6 hours
-#define WIFI_TIMEOUT 20000UL // 20 seconds
+#define TIMEZONE_OFFSET_SEC         (7 * 3600)
+#define NTP_SYNC_INTERVAL           (6UL * 60UL * 60UL * 1000UL)
+#define RTC_DRIFT_THRESHOLD_SEC     5
+#define MIN_SYNC_INTERVAL_MS        (6UL * 60UL * 60UL * 1000UL) // 6 hours
+#define WIFI_TIMEOUT                20000UL     // 20 seconds
 
 #define MAX_SCHEDULES   8
 
@@ -201,6 +202,7 @@ void handleMenuNavigation (int direction);
 void renderMenuUI (void);
 void updateDisplayUI (void);
 bool saveScheduleToSDCard (void);
+void sendSensorDataToFirebase (void);
 
 void readEEPROM();
 void writeEEPROM(const char* newSsid, const char* newPass);
@@ -1480,4 +1482,50 @@ bool saveScheduleToSDCard (void) {
     Serial.println(F(" entries)."));
 
     return true;
+}
+
+void sendSensorDataToFirebase (void) {
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println(F("[Firebase] WiFi not connected, aborting data send."));
+        return;
+    }
+
+    fbClient.setInsecure();  // Firebase HTTPS
+
+    String url = String(FIREBASE_URL) + "/data.json";
+    if (strlen(FIREBASE_AUTH) > 0) {
+        url += "?auth=";
+        url += FIREBASE_AUTH;
+    }
+
+    // ---- Build JSON payload ----
+    String payload = "{";
+    payload += "\"temperature\":" + String(ahtTemperature, 2) + ",";
+    payload += "\"humidity\":"    + String(ahtHumidity, 2) + ",";
+    payload += "\"pressure\":"    + String(bmpPressure, 2) + ",";
+    payload += "\"altitude\":"    + String(bmpAltitude, 2) + ",";
+    payload += "\"motion\":"      + String(motionDetected ? "true" : "false") + ",";
+    payload += "\"timestamp\":"   + String(rtc.now().unixtime());
+    payload += "}";
+
+    http.begin(fbClient, url);
+    http.addHeader("Content-Type", "application/json");
+
+    int httpCode = http.PATCH(payload);
+
+    if (httpCode > 0) {
+        Serial.print(F("[Firebase] PATCH code: "));
+        Serial.println(httpCode);
+
+        if (httpCode == HTTP_CODE_OK) {
+            Serial.println(F("[Firebase] Sensor data updated successfully."));
+        } else {
+            Serial.println(http.getString());
+        }
+    } else {
+        Serial.print(F("[Firebase] PATCH failed: "));
+        Serial.println(http.errorToString(httpCode));
+    }
+
+    http.end();
 }

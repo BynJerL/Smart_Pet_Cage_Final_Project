@@ -62,6 +62,18 @@
 </div>
 
 <div class="card">
+  <h2>Threshold</h2>
+  <div>Water Level Low: <input type="number" id="water_level_low" value="20"> %</div>
+  <div>Water Level High: <input type="number" id="water_level_high" value="80"> %</div>
+  <div>Temperature Low: <input type="number" id="temp_low" value="20"> °C</div>
+  <div>Temperature High: <input type="number" id="temp_high" value="30"> °C</div>
+  <div>Humidity Low: <input type="number" id="hum_low" value="40"> %</div>
+  <div>Humidity High: <input type="number" id="hum_high" value="80"> %</div>
+  <button onclick="updateThreshold()">Update Threshold</button>
+  <div class="small" id="threshold_msg"></div>
+</div>
+
+<div class="card">
   <h2>Status</h2>
   <div>Gate: <span id="gate">---</span></div>
   <div>Pump: <span id="pump">---</span></div>
@@ -83,6 +95,7 @@ fetch("config.json")
     FIREBASE_URL = cfg.firebase_url;
     POLL_INTERVAL = cfg.poll_interval_ms || 2000;
     startStatusPolling();
+    loadThreshold();
   })
   .catch(err => {
     alert("Failed to load config.json");
@@ -256,6 +269,85 @@ function loadSchedule() {
       });
     });
 }
+
+function loadThreshold() {
+  fetch(`${FIREBASE_URL}/threshold.json`)
+    .then(res => res.json())
+    .then(data => {
+      if (!data) return;
+
+      document.getElementById("water_level_low").value = data.water_level?.low ?? 20;
+      document.getElementById("water_level_high").value = data.water_level?.high ?? 80;
+
+      document.getElementById("temp_low").value = data.temperature?.low ?? 20;
+      document.getElementById("temp_high").value = data.temperature?.high ?? 30;
+
+      document.getElementById("hum_low").value = data.humidity?.low ?? 40;
+      document.getElementById("hum_high").value = data.humidity?.high ?? 80;
+    })
+    .catch(err => console.error("Threshold load failed:", err));
+}
+
+function collectThreshold() {
+  const t = {
+    water_level: {
+      low: Number(document.getElementById("water_level_low").value),
+      high: Number(document.getElementById("water_level_high").value)
+    },
+    temperature: {
+      low: Number(document.getElementById("temp_low").value),
+      high: Number(document.getElementById("temp_high").value)
+    },
+    humidity: {
+      low: Number(document.getElementById("hum_low").value),
+      high: Number(document.getElementById("hum_high").value)
+    },
+    updated_at: Math.floor(Date.now() / 1000)
+  };
+
+  // Simple sanity checks
+  if (t.water_level.low >= t.water_level.high)
+    throw "Water level LOW must be less than HIGH";
+
+  if (t.temperature.low >= t.temperature.high)
+    throw "Temperature LOW must be less than HIGH";
+
+  if (t.humidity.low >= t.humidity.high)
+    throw "Humidity LOW must be less than HIGH";
+
+  return t;
+}
+
+function updateThreshold() {
+  const msg = document.getElementById("threshold_msg");
+  msg.textContent = "";
+
+  let threshold;
+
+  try {
+    threshold = collectThreshold();
+  } catch (err) {
+    msg.textContent = err;
+    msg.style.color = "#ef4444";
+    return;
+  }
+
+  fetch(`${FIREBASE_URL}/threshold.json`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(threshold)
+  })
+  .then(res => {
+    if (!res.ok) throw "Failed to save threshold";
+    msg.textContent = "Threshold updated successfully";
+    msg.style.color = "#22c55e";
+  })
+  .catch(err => {
+    msg.textContent = err;
+    msg.style.color = "#ef4444";
+  });
+}
+
 
 buildScheduleUI("feeder");
 buildScheduleUI("water");

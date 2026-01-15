@@ -623,6 +623,9 @@ void checkSerialCommand (void) {
             case 'h':
                 checkSensorThreshold();
                 break;
+            case 'H':
+                updateSensorThresholdFromFirebase();
+                break;
             // case 'd':
             //     IPAddress serverIP;
             //     if (WiFi.hostByName("pool.ntp.org", serverIP)) {
@@ -1288,6 +1291,7 @@ void printSerialCommandList (void) {
     Serial.println(F("o - Toggle periodic data send to Firebase"));
     Serial.println(F("p - Send sensor data to Firebase"));
     Serial.println(F("h - Show sensor threshold"));
+    Serial.println(F("H - Force sync sensor threshold with Firebase"));
     Serial.println(F("i - Print this Command List"));
 }
 
@@ -1565,7 +1569,54 @@ void sendSensorDataPeriodically (void) {
 }
 
 void updateSensorThresholdFromFirebase (void) {
-    // To be implemented later
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println(F("[Threshold] WiFi not connected"));
+        return;
+    }
+
+    fbClient.setInsecure();
+
+    String url = String(FIREBASE_URL) + "/threshold.json";
+    if (strlen(FIREBASE_AUTH) > 0) {
+        url += "?auth=";
+        url += FIREBASE_AUTH;
+    }
+
+    Serial.println(F("[Threshold] Fetching threshold from Firebase..."));
+    http.begin(fbClient, url);
+    int httpCode = http.GET();
+
+    if (httpCode != HTTP_CODE_OK) {
+        Serial.print(F("[Threshold] HTTP error "));
+        Serial.println(httpCode);
+        http.end();
+        return;
+    }
+
+    String payload = http.getString();
+    http.end();
+
+    if (payload.length() < 10) {
+        Serial.println(F("[Threshold] Empty payload"));
+        return;
+    }
+
+    // -------- Temperature --------
+    int tLow = payload.indexOf("\"temperature\"");
+    if (tLow != -1) {
+        tempLowThreshold  = payload.substring(payload.indexOf("\"low\":", tLow) + 6).toFloat();
+        tempHighThreshold = payload.substring(payload.indexOf("\"high\":", tLow) + 7).toFloat();
+    }
+
+    // -------- Humidity --------
+    int hLow = payload.indexOf("\"humidity\"");
+    if (hLow != -1) {
+        humLowThreshold  = payload.substring(payload.indexOf("\"low\":", hLow) + 6).toFloat();
+        humHighThreshold = payload.substring(payload.indexOf("\"high\":", hLow) + 7).toFloat();
+    }
+
+    Serial.println(F("[Threshold] Updated:"));
+    checkSensorThreshold();
 }
 
 void checkSensorThreshold (void) {

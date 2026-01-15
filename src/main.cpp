@@ -64,6 +64,10 @@
 #define DEF_HIGH_HUM_THRESHOLD  75
 #define DEF_LOW_HUM_THRESHOLD   45
 #define MOTION_ALERT_ENABLED    false   // We don't need to alert this for now
+#define LOW_FOOD_THRESHOLD      20
+#define HIGH_FOOD_THRESHOLD     80
+#define LOW_WATER_THRESHOLD     20
+#define HIGH_WATER_THRESHOLD    80
 
 #define DEF_SEND_DATA_PERIODICALLY  false
 
@@ -153,7 +157,11 @@ bool motionDetected = false;
 float tempHighThreshold = DEF_HIGH_TEMP_THRESHOLD;
 float tempLowThreshold = DEF_LOW_TEMP_THRESHOLD;
 float humHighThreshold = DEF_HIGH_HUM_THRESHOLD;
-float humLowThreshold = DEF_LOW_HUM_THRESHOLD; 
+float humLowThreshold = DEF_LOW_HUM_THRESHOLD;
+float foodLowThreshold = LOW_FOOD_THRESHOLD;
+float foodHighThreshold = HIGH_FOOD_THRESHOLD;
+float waterLowThreshold = LOW_WATER_THRESHOLD;
+float waterHighThreshold = HIGH_WATER_THRESHOLD;
 
 bool tempHighAlertActive = false;
 bool tempLowAlertActive = false;

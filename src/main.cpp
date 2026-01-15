@@ -65,6 +65,8 @@
 #define DEF_LOW_HUM_THRESHOLD   45
 #define MOTION_ALERT_ENABLED    false   // We don't need to alert this for now
 
+#define DEF_SEND_DATA_PERIODICALLY  false
+
 #define LCD_ROW 2
 #define LCD_COL 16
 
@@ -117,6 +119,8 @@ bool isConfigMode = false;
 bool scheduleResetDone = false;
 bool ahtInitialized = false;
 bool bmpInitialized = false;
+
+bool isSendDataPeriodically = DEF_SEND_DATA_PERIODICALLY;
 
 byte buttonState = 0b01111111; // Only use 7 bit
 byte lastButtonState = 0b01111111; // Only use 7 bit
@@ -207,6 +211,7 @@ void sendSensorDataToFirebase (void);
 void sendSensorDataPeriodically (void);
 void updateSensorThresholdFromFirebase (void);
 void checkSensorThreshold (void);
+void toggleSendDataToFirebase (void);
 
 void readEEPROM();
 void writeEEPROM(const char* newSsid, const char* newPass);
@@ -284,6 +289,7 @@ void loop () {
     checkScheduleExecution();
     checkSerialCommand();
     readSensorsData();
+    sendSensorDataPeriodically();
 
     if (isConfigMode) {
         server.handleClient();
@@ -606,6 +612,9 @@ void checkSerialCommand (void) {
                 break;
             case 'i':
                 printSerialCommandList();
+                break;
+            case 'o':
+                toggleSendDataToFirebase();
                 break;
             case 'p':
                 Serial.println(F("Sending sensor data to Firebase..."));
@@ -1276,6 +1285,7 @@ void printSerialCommandList (void) {
     Serial.println(F("y - Show Sensors\' data"));
     Serial.println(F("w - Force write schedule to SD Card"));
     Serial.println(F("l - Load Schedule from SD Card to RAM"));
+    Serial.println(F("o - Toggle periodic data send to Firebase"));
     Serial.println(F("p - Send sensor data to Firebase"));
     Serial.println(F("h - Show sensor threshold"));
     Serial.println(F("i - Print this Command List"));
@@ -1549,7 +1559,7 @@ void sendSensorDataToFirebase (void) {
 }
 
 void sendSensorDataPeriodically (void) {
-    if (millis() - lastDataPatch < SENSOR_DATA_PATCH_INTERVAL_MS) return;
+    if (millis() - lastDataPatch < SENSOR_DATA_PATCH_INTERVAL_MS || !isSendDataPeriodically) return;
     lastDataPatch = millis();
     sendSensorDataToFirebase();
 }
@@ -1562,6 +1572,12 @@ void checkSensorThreshold (void) {
     Serial.println("[CMD] Threshold Check");
     Serial.print("Temperature: High="); Serial.print(tempHighThreshold); Serial.print(" °C, Low="); Serial.print(tempLowThreshold); Serial.println(" °C");
     Serial.print("Humidity: High="); Serial.print(humHighThreshold); Serial.print("%, Low="); Serial.print(humLowThreshold); Serial.println("%");
+}
+
+void toggleSendDataToFirebase (void) {
+    Serial.println("[CMD] Toggle Periodic Data Sending ...");
+    isSendDataPeriodically = !isSendDataPeriodically;
+    Serial.print("> Set to "); Serial.println((isSendDataPeriodically)? "True" : "False"); 
 }
 
 void displaySensorsDataOnLCD (void) {

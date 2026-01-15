@@ -206,6 +206,7 @@ bool saveScheduleToSDCard (void);
 void sendSensorDataToFirebase (void);
 void sendSensorDataPeriodically (void);
 void updateSensorThresholdFromFirebase (void);
+void checkSensorThreshold (void);
 
 void readEEPROM();
 void writeEEPROM(const char* newSsid, const char* newPass);
@@ -229,6 +230,9 @@ void showSavedAHTdata (void);
 void showSavedBMPdata (void);
 void showMotionSensorData (void);
 void showSensorsData (void);
+void displaySensorsDataOnLCD (void);
+void watchdog (void);                   // Additional features (develop later)
+void sendDeviceHeartbeat (void);        // Additional features (develop later)
 
 void setup () {
     Serial.begin(115200);
@@ -606,6 +610,9 @@ void checkSerialCommand (void) {
             case 'p':
                 Serial.println(F("Sending sensor data to Firebase..."));
                 sendSensorDataToFirebase();
+                break;
+            case 'h':
+                checkSensorThreshold();
                 break;
             // case 'd':
             //     IPAddress serverIP;
@@ -1270,6 +1277,7 @@ void printSerialCommandList (void) {
     Serial.println(F("w - Force write schedule to SD Card"));
     Serial.println(F("l - Load Schedule from SD Card to RAM"));
     Serial.println(F("p - Send sensor data to Firebase"));
+    Serial.println(F("h - Show sensor threshold"));
     Serial.println(F("i - Print this Command List"));
 }
 
@@ -1547,5 +1555,15 @@ void sendSensorDataPeriodically (void) {
 }
 
 void updateSensorThresholdFromFirebase (void) {
+    // To be implemented later
+}
+
+void checkSensorThreshold (void) {
+    Serial.println("[CMD] Threshold Check");
+    Serial.print("Temperature: High="); Serial.print(tempHighThreshold); Serial.print(" °C, Low="); Serial.print(tempLowThreshold); Serial.println(" °C");
+    Serial.print("Humidity: High="); Serial.print(humHighThreshold); Serial.print("%, Low="); Serial.print(humLowThreshold); Serial.println("%");
+}
+
+void displaySensorsDataOnLCD (void) {
     // To be implemented later
 }

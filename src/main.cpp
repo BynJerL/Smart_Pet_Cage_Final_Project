@@ -583,8 +583,8 @@ void checkSerialCommand (void) {
                 printSchedule();
                 break;
             case 'x':
-                rtc.adjust(DateTime(2025, 1, 1, 16, 58, 0));
-                Serial.println(F("RTC manually set to 16:58 for testing."));
+                rtc.adjust(DateTime(2026, 1, 1, 23, 59, 30));
+                Serial.println(F("RTC manually set to 23:59 for testing."));
                 break;
             case 'n':
                 syncRTCWithNTP(true);

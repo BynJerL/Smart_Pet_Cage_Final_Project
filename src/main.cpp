@@ -248,6 +248,10 @@ void displaySensorsDataOnLCD (void);
 void watchdog (void);                   // Additional features (develop later)
 void sendDeviceHeartbeat (void);        // Additional features (develop later)
 
+void setRelayOn (uint8_t relayBitPos);
+void setRelayOff (uint8_t relayBitPos);
+void toggleRelay (uint8_t relayBitPos);
+
 void setup () {
     Serial.begin(115200);
     initializeButtons();
@@ -712,13 +716,18 @@ void startPump(void) {
     pumpTimer.startTime = millis();
 
     // Active LOW relay
-    pcf2.digitalWrite(PUMP_RELAY, LOW);
+    // actuatorState &= ~_BV(PUMP_RELAY);
+    setRelayOn(PUMP_RELAY);
+    applyRelayState();
     Serial.println(F("Pump ON"));
 }
 
 void stopPump(void) {
     pumpTimer.active = false;
-    pcf2.digitalWrite(PUMP_RELAY, HIGH);
+    // pcf2.digitalWrite(PUMP_RELAY, HIGH);
+    // actuatorState |= _BV(PUMP_RELAY);
+    setRelayOff(PUMP_RELAY);
+    applyRelayState();
     Serial.println(F("Pump OFF"));
 }
 
@@ -1472,13 +1481,15 @@ void updateDisplayUI (void) {
 }
 
 void toggleGate(void) {
-    actuatorState ^= _BV(GATE_RELAY);
+    // actuatorState ^= _BV(GATE_RELAY);
+    toggleRelay(GATE_RELAY);
     applyRelayState();
     Serial.println(F("Gate toggled"));
 }
 
 void toggleFan(void) {
-    actuatorState ^= _BV(FAN_RELAY);
+    // actuatorState ^= _BV(FAN_RELAY);
+    toggleRelay(FAN_RELAY);
     applyRelayState();
     Serial.println(F("Fan toggled"));
 }
@@ -1656,4 +1667,16 @@ void showAlertStatus (void) {
 
 void displaySensorsDataOnLCD (void) {
     // To be implemented later
+}
+
+void setRelayOn (uint8_t relayBitPos) {
+    actuatorState &= ~_BV(relayBitPos);
+}
+
+void setRelayOff (uint8_t relayBitPos) {
+    actuatorState |= _BV(relayBitPos);
+}
+
+void toggleRelay (uint8_t relayBitPos) {
+    actuatorState ^= _BV(relayBitPos);
 }

@@ -143,6 +143,8 @@ unsigned long lastDataPatch = 0;
 byte actuatorState = 0b00000111; // Only use 3 bit for now
 byte lastActuatorState = 0b00000111; // Only use 3 bit for now
 
+bool isFeederRunning = false;
+
 char ssid[32];
 char pass[64];
 
@@ -221,6 +223,7 @@ void sendSensorDataPeriodically (void);
 void updateSensorThresholdFromFirebase (void);
 void checkSensorThreshold (void);
 void toggleSendDataToFirebase (void);
+void showActuatorState (void);
 
 void readEEPROM();
 void writeEEPROM(const char* newSsid, const char* newPass);
@@ -624,6 +627,7 @@ void checkSerialCommand (void) {
             case 'y':
                 showSensorsData();
                 break;
+            case '?':
             case 'i':
                 printSerialCommandList();
                 break;
@@ -642,6 +646,9 @@ void checkSerialCommand (void) {
                 break;
             case 'a':
                 showAlertStatus();
+                break;
+            case 'g':
+                showActuatorState();
                 break;
             // case 'd':
             //     IPAddress serverIP;
@@ -739,12 +746,14 @@ void startFeeder(void) {
 
     // For now: LED / relay simulation
     analogWrite(FEEDER_PIN, 255);
+    isFeederRunning = true;
     Serial.println(F("Feeder ON"));
 }
 
 void stopFeeder(void) {
     feederTimer.active = false;
     analogWrite(FEEDER_PIN, 0);
+    isFeederRunning = false;
     Serial.println(F("Feeder OFF"));
 }
 
@@ -1315,6 +1324,7 @@ void printSerialCommandList (void) {
     Serial.println(F("h - Show sensor threshold"));
     Serial.println(F("H - Force sync sensor threshold with Firebase"));
     Serial.println(F("a - Show alert status"));
+    Serial.println(F("g - Show actuator state"));
     Serial.println(F("i - Print this Command List"));
 }
 
@@ -1679,4 +1689,12 @@ void setRelayOff (uint8_t relayBitPos) {
 
 void toggleRelay (uint8_t relayBitPos) {
     actuatorState ^= _BV(relayBitPos);
+}
+
+void showActuatorState (void) {
+    Serial.println("=== Actuator States ===");
+    Serial.print("Gate Relay: "); Serial.println((actuatorState & _BV(GATE_RELAY)) ? "OFF" : "ON");
+    Serial.print("Pump Relay: "); Serial.println((actuatorState & _BV(PUMP_RELAY)) ? "OFF" : "ON");
+    Serial.print("Fan Relay: ");  Serial.println((actuatorState & _BV(FAN_RELAY))  ? "OFF" : "ON");
+    Serial.print("Feeder: ");     Serial.println(isFeederRunning ? "ON" : "OFF");
 }

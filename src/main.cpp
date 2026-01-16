@@ -211,6 +211,7 @@ void printScheduleFromFirebase (void);
 bool loadScheduleFromFirebaseToRAM (void);
 void printSerialCommandList (void);
 void checkAlerts (void);
+void showAlertStatus (void);
 void handleMenuNavigation (int direction);
 void renderMenuUI (void);
 void updateDisplayUI (void);
@@ -633,6 +634,9 @@ void checkSerialCommand (void) {
                 break;
             case 'H':
                 updateSensorThresholdFromFirebase();
+                break;
+            case 'a':
+                showAlertStatus();
                 break;
             // case 'd':
             //     IPAddress serverIP;
@@ -1300,6 +1304,7 @@ void printSerialCommandList (void) {
     Serial.println(F("p - Send sensor data to Firebase"));
     Serial.println(F("h - Show sensor threshold"));
     Serial.println(F("H - Force sync sensor threshold with Firebase"));
+    Serial.println(F("a - Show alert status"));
     Serial.println(F("i - Print this Command List"));
 }
 
@@ -1637,6 +1642,15 @@ void toggleSendDataToFirebase (void) {
     Serial.println("[CMD] Toggle Periodic Data Sending ...");
     isSendDataPeriodically = !isSendDataPeriodically;
     Serial.print("> Set to "); Serial.println((isSendDataPeriodically)? "True" : "False"); 
+}
+
+void showAlertStatus (void) {
+    Serial.println("=== Alert Status ===");
+    Serial.print("Temp High Alert: "); Serial.println(tempHighAlertActive ? "ACTIVE" : "INACTIVE");
+    Serial.print("Temp Low Alert: "); Serial.println(tempLowAlertActive ? "ACTIVE" : "INACTIVE");
+    Serial.print("Hum High Alert: "); Serial.println(humHighAlertActive ? "ACTIVE" : "INACTIVE");
+    Serial.print("Hum Low Alert: "); Serial.println(humLowAlertActive ? "ACTIVE" : "INACTIVE");
+    Serial.print("Motion Alert: "); Serial.println(motionAlertActive ? "ACTIVE" : "INACTIVE");
 }
 
 void displaySensorsDataOnLCD (void) {

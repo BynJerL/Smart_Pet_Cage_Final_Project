@@ -395,14 +395,14 @@ void initializeNTP (void) {
     
     Serial.print(F("Waiting for NTP first update..."));
     int attempts = 0;
-    while (!timeClient.update() && attempts < 20) {
+    while (!timeClient.update() && attempts < 10) {
         delay(500);
         Serial.print(F("."));
         attempts++;
     }
     
     if (attempts >= 10) {
-        Serial.println(F(" FAILED after 10 seconds."));
+        Serial.println(F(" FAILED after 5 seconds."));
         Serial.println(F("WiFi status: "));
         Serial.println(WiFi.status());
         ntpInitialized = false;

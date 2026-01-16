@@ -430,6 +430,7 @@ void initializeMotionSensor (void) {
 void initializeSensors (void) {
     initializeAHT();
     initializeBMP();
+    initializeMotionSensor();
 }
 void initializeDisplay (void) {
     lcd.init();

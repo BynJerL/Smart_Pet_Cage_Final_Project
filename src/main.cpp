@@ -255,6 +255,8 @@ void setRelayOn (uint8_t relayBitPos);
 void setRelayOff (uint8_t relayBitPos);
 void toggleRelay (uint8_t relayBitPos);
 
+String withAuth(String url);
+
 void setup () {
     Serial.begin(115200);
     initializeButtons();
@@ -1697,4 +1699,12 @@ void showActuatorState (void) {
     Serial.print("Pump Relay: "); Serial.println((actuatorState & _BV(PUMP_RELAY)) ? "OFF" : "ON");
     Serial.print("Fan Relay: ");  Serial.println((actuatorState & _BV(FAN_RELAY))  ? "OFF" : "ON");
     Serial.print("Feeder: ");     Serial.println(isFeederRunning ? "ON" : "OFF");
+}
+
+String withAuth(String url) {
+  if (strlen(FIREBASE_AUTH) > 0) {
+    url += "?auth=";
+    url += FIREBASE_AUTH;
+  }
+  return url;
 }

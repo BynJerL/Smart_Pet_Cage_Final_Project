@@ -240,6 +240,8 @@ void showActuatorState (void);
 void fetchCommandFromFirebase(void);
 void fetchCommandFromFirebasePeriodically (void);
 void toggleCommandPolling (void);
+void executeCommand (const String& action, const String& target);
+void deleteCommandFromFirebase (const String& commandKey);
 
 void readEEPROM();
 void writeEEPROM(const char* newSsid, const char* newPass);

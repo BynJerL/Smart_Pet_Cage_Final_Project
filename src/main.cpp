@@ -15,6 +15,7 @@
 #include <Adafruit_AHTX0.h>
 #include <Adafruit_BMP280.h>
 #include <LiquidCrystal_I2C.h>
+#include <Adafruit_NeoPixel.h>
 
 #define L_BUTTON      P0
 #define C_BUTTON      P1
@@ -29,6 +30,7 @@
 #define FAN_RELAY     P2
 #define FEEDER_PIN    4
 #define MOTION_SENSOR_PIN 5
+#define RGB_LED       48
 
 #define SD_CS   10
 #define SD_MOSI 11
@@ -76,6 +78,8 @@
 #define LCD_ROW 2
 #define LCD_COL 16
 
+#define NUM_PIXELS 1
+
 PCF8574 pcf1(PCF8574_ADDRESS_1);
 PCF8574 pcf2(PCF8574_ADDRESS_2);
 RTC_DS3231 rtc;
@@ -88,6 +92,7 @@ HTTPClient http;
 Adafruit_AHTX0 aht;
 Adafruit_BMP280 bmp;
 LiquidCrystal_I2C lcd(0x27, LCD_COL, LCD_ROW);
+Adafruit_NeoPixel rgb(NUM_PIXELS, RGB_LED, NEO_GRB + NEO_KHZ800);
 
 enum ScheduleType : uint8_t {
   SCHED_FEEDER,
@@ -196,6 +201,7 @@ void initializeRTC (void);
 void initializeSDCardReader (void);
 void initializeWiFi (void);
 void initializeNTP (void);
+void initializeRGB (void);
 
 void readRawButtonInput (void);
 void updateButtonInput (void);
@@ -451,6 +457,12 @@ void initializeDisplay (void) {
     lcd.init();
     lcd.backlight();
     Serial.println(F("LCD Display initialized successfully."));
+}
+void initializeRGB (void) {
+  rgb.begin();
+  rgb.setBrightness(30);   // 0–255 (start low!)
+  rgb.clear();
+  rgb.show();
 }
 
 void readRawButtonInput (void) {

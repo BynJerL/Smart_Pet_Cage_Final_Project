@@ -323,6 +323,7 @@ void loop () {
     checkSerialCommand();
     readSensorsData();
     sendSensorDataPeriodically();
+    fetchCommandFromFirebasePeriodically();
 
     if (isConfigMode) {
         server.handleClient();
@@ -675,6 +676,9 @@ void checkSerialCommand (void) {
                 break;
             case 'c':
                 fetchCommandFromFirebase();
+                break;
+            case 'C':
+                toggleCommandPolling();
                 break;
             case '.':
                 updateRGBMode();
@@ -1355,6 +1359,7 @@ void printSerialCommandList (void) {
     Serial.println(F("a - Show alert status"));
     Serial.println(F("g - Show actuator state"));
     Serial.println(F("c - Force Fetch command from Firebase"));
+    Serial.println(F("C - Toggle periodic command polling"));
     Serial.println(F(". - Update RGB mode"));
     Serial.println(F("i - Print this Command List"));
 }
@@ -1815,4 +1820,10 @@ void fetchCommandFromFirebasePeriodically (void) {
     if (now - lastCommandPoll < COMMAND_POLL_INTERVAL_MS || !isCommandPollPeriodically) return;
     lastCommandPoll = now;
     fetchCommandFromFirebase();
+}
+
+void toggleCommandPolling (void) {
+    Serial.println("[CMD] Toggle Command Polling ...");
+    isCommandPollPeriodically = !isCommandPollPeriodically;
+    Serial.print("> Set to "); Serial.println((isCommandPollPeriodically)? "True" : "False");
 }

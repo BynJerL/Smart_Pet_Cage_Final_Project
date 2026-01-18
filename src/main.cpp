@@ -189,6 +189,8 @@ const char* menuNames[MENU_COUNT] = {
 volatile int8_t currentMenu = 0;
 bool menuDirty = true;
 
+int8_t rgbMode = 0;
+
 void initializeButtons (void);
 void initializeRelays (void);
 void initializeFeeder (void); // Not yet implemented now
@@ -260,6 +262,7 @@ void showSavedBMPdata (void);
 void showMotionSensorData (void);
 void showSensorsData (void);
 void displaySensorsDataOnLCD (void);
+void updateRGBMode (void);
 void watchdog (void);                   // Additional features (develop later)
 void sendDeviceHeartbeat (void);        // Additional features (develop later)
 
@@ -1697,6 +1700,26 @@ void showAlertStatus (void) {
     Serial.print("Hum High Alert: "); Serial.println(humHighAlertActive ? "ACTIVE" : "INACTIVE");
     Serial.print("Hum Low Alert: "); Serial.println(humLowAlertActive ? "ACTIVE" : "INACTIVE");
     Serial.print("Motion Alert: "); Serial.println(motionAlertActive ? "ACTIVE" : "INACTIVE");
+}
+
+void updateRGBMode (void) {
+    rgbMode = (++rgbMode) % 4;
+
+    switch (rgbMode) {
+        case 0:
+            rgb.clear();
+            break;
+        case 1:
+            rgb.setPixelColor(0, rgb.Color(255, 0, 0));
+            break;
+        case 2:
+            rgb.setPixelColor(0, rgb.Color(0, 255, 0));
+            break;
+        case 3:
+            rgb.setPixelColor(0, rgb.Color(0, 0, 255));
+            break;
+    }
+    rgb.show();
 }
 
 void displaySensorsDataOnLCD (void) {

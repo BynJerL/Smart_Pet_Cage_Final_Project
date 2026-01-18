@@ -130,6 +130,7 @@ bool isConfigMode = false;
 bool scheduleResetDone = false;
 bool ahtInitialized = false;
 bool bmpInitialized = false;
+bool rgbInitialized = false;
 
 bool isSendDataPeriodically = DEF_SEND_DATA_PERIODICALLY;
 bool isCommandPollPeriodically = DEF_POLL_CMD_PERIODICALLY;
@@ -238,6 +239,7 @@ void toggleSendDataToFirebase (void);
 void showActuatorState (void);
 void fetchCommandFromFirebase(void);
 void fetchCommandFromFirebasePeriodically (void);
+void toggleCommandPolling (void);
 
 void readEEPROM();
 void writeEEPROM(const char* newSsid, const char* newPass);
@@ -279,6 +281,7 @@ void setup () {
     initializeFeeder();
     initializeSensors();
     initializeDisplay();
+    initializeRGB();
 
     /* WiFi Setup */ 
     WiFi.mode(WIFI_STA);
@@ -463,10 +466,17 @@ void initializeDisplay (void) {
     Serial.println(F("LCD Display initialized successfully."));
 }
 void initializeRGB (void) {
-  rgb.begin();
-  rgb.setBrightness(30);   // 0–255 (start low!)
-  rgb.clear();
-  rgb.show();
+    if (!rgb.begin()) {
+        Serial.println(F("ERROR: Could not initialize RGB LED! Check wiring and connections."));
+        return;
+    }
+    rgb.setBrightness(35);
+    rgb.clear();
+    rgb.show(); // Initialize all pixels to 'off'
+
+    rgbInitialized = true;
+
+    Serial.println(F("RGB LED initialized successfully."));
 }
 
 void readRawButtonInput (void) {
@@ -682,6 +692,23 @@ void checkSerialCommand (void) {
                 break;
             case '.':
                 updateRGBMode();
+                break;
+            case 'z':
+            case 'Z': {
+                Serial.println("Testing RGB LED...");
+                rgb.setPixelColor(0, rgb.Color(255, 0, 0));
+                rgb.show();
+                delay(500);
+                rgb.setPixelColor(0, rgb.Color(0, 255, 0));
+                rgb.show();
+                delay(500);
+                rgb.setPixelColor(0, rgb.Color(0, 0, 255));
+                rgb.show();
+                delay(500);
+                rgb.clear();
+                rgb.show();
+                Serial.println("RGB test complete");
+                }
                 break;
             // case 'd':
             //     IPAddress serverIP;
@@ -1361,6 +1388,7 @@ void printSerialCommandList (void) {
     Serial.println(F("c - Force Fetch command from Firebase"));
     Serial.println(F("C - Toggle periodic command polling"));
     Serial.println(F(". - Update RGB mode"));
+    Serial.println(F("z - Test RGB"));
     Serial.println(F("i - Print this Command List"));
 }
 
@@ -1712,6 +1740,7 @@ void showAlertStatus (void) {
 }
 
 void updateRGBMode (void) {
+    if (!rgbInitialized) return;
     rgbMode = (++rgbMode) % 4;
 
     switch (rgbMode) {
@@ -1729,6 +1758,8 @@ void updateRGBMode (void) {
             break;
     }
     rgb.show();
+    Serial.print(F("RGB mode set to "));
+    Serial.println(rgbMode);
 }
 
 void displaySensorsDataOnLCD (void) {
@@ -1769,7 +1800,7 @@ void fetchCommandFromFirebase (void) {
     fbClient.setInsecure();
 
     String url = String(FIREBASE_URL)
-        + "/commands.json?orderBy=\"ts\"&limitToFirst=1";
+        + "/commands.json?orderBy=\"$key\"&limitToFirst=1";
 
     if (strlen(FIREBASE_AUTH) > 0) {
         url += "&auth=";

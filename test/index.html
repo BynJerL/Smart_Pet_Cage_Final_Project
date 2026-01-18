@@ -109,7 +109,11 @@ function sendCommand(target, action) {
   fetch(`${FIREBASE_URL}/commands.json`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ target, action })
+    body: JSON.stringify({ 
+      target, 
+      action,
+      ts: Math.floor(Date.now() / 1000)
+    })
   })
   .then(res => res.json())
   .then(data => {

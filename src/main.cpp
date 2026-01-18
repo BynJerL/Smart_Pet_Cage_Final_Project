@@ -45,6 +45,7 @@
 #define SENSOR_READ_INTERVAL_MS       2000
 #define UI_REFRESH_INTERVAL_MS        200
 #define SENSOR_DATA_PATCH_INTERVAL_MS 6000    // Keep the system responsive
+#define COMMAND_POLL_INTERVAL_MS      5000
 
 #define TIMEZONE_OFFSET_SEC         (7 * 3600)
 #define NTP_SYNC_INTERVAL           (6UL * 60UL * 60UL * 1000UL)
@@ -70,6 +71,7 @@
 #define HIGH_WATER_THRESHOLD    80
 
 #define DEF_SEND_DATA_PERIODICALLY  false
+#define DEF_POLL_CMD_PERIODICALLY   false
 
 #define LCD_ROW 2
 #define LCD_COL 16
@@ -125,6 +127,7 @@ bool ahtInitialized = false;
 bool bmpInitialized = false;
 
 bool isSendDataPeriodically = DEF_SEND_DATA_PERIODICALLY;
+bool isCommandPollPeriodically = DEF_POLL_CMD_PERIODICALLY;
 
 byte buttonState = 0b01111111; // Only use 7 bit
 byte lastButtonState = 0b01111111; // Only use 7 bit
@@ -139,6 +142,7 @@ unsigned long connectStart = 0;
 unsigned long lastSensorReadTime = 0;
 unsigned long lastUIUpdate = 0;
 unsigned long lastDataPatch = 0;
+unsigned long lastCommandPoll = 0;
 
 byte actuatorState = 0b00000111; // Only use 3 bit for now
 byte lastActuatorState = 0b00000111; // Only use 3 bit for now
@@ -224,6 +228,8 @@ void updateSensorThresholdFromFirebase (void);
 void checkSensorThreshold (void);
 void toggleSendDataToFirebase (void);
 void showActuatorState (void);
+void fetchCommandFromFirebase(void);
+void fetchCommandFromFirebasePeriodically (void);
 
 void readEEPROM();
 void writeEEPROM(const char* newSsid, const char* newPass);
@@ -1707,4 +1713,63 @@ String withAuth(String url) {
     url += FIREBASE_AUTH;
   }
   return url;
+}
+
+void fetchCommandFromFirebase (void) {
+    if (WiFi.status() != WL_CONNECTED) return;
+
+    fbClient.setInsecure();
+
+    String url = String(FIREBASE_URL)
+        + "/commands.json?orderBy=\"ts\"&limitToFirst=1";
+
+    if (strlen(FIREBASE_AUTH) > 0) {
+        url += "&auth=";
+        url += FIREBASE_AUTH;
+    }
+
+    http.begin(fbClient, url);
+    int httpCode = http.GET();
+
+    if (httpCode != HTTP_CODE_OK) {
+        http.end();
+        return;
+    }
+
+    String payload = http.getString();
+    http.end();
+
+    if (payload == "null") return;
+
+    // ---- Parse key ----
+    int keyStart = payload.indexOf('{') + 1;
+    int keyEnd   = payload.indexOf(':', keyStart);
+    if (keyStart <= 0 || keyEnd <= 0) return;
+
+    String key = payload.substring(keyStart, keyEnd);
+    key.replace("\"", "");
+
+    // ---- Parse action ----
+    int aPos = payload.indexOf("\"action\"");
+    int aQ1  = payload.indexOf("\"", aPos + 8);
+    int aQ2  = payload.indexOf("\"", aQ1 + 1);
+    String action = payload.substring(aQ1 + 1, aQ2);
+
+    // ---- Parse target ----
+    int tPos = payload.indexOf("\"target\"");
+    int tQ1  = payload.indexOf("\"", tPos + 8);
+    int tQ2  = payload.indexOf("\"", tQ1 + 1);
+    String target = payload.substring(tQ1 + 1, tQ2);
+
+    Serial.println(F("[Command] Received"));
+    Serial.print(F("  Key    : ")); Serial.println(key);
+    Serial.print(F("  Action : ")); Serial.println(action);
+    Serial.print(F("  Target : ")); Serial.println(target);
+}
+
+void fetchCommandFromFirebasePeriodically (void) {
+    unsigned long now = millis();
+    if (now - lastCommandPoll < COMMAND_POLL_INTERVAL_MS || !isCommandPollPeriodically) return;
+    lastCommandPoll = now;
+    fetchCommandFromFirebase();
 }

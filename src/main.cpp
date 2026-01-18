@@ -658,6 +658,9 @@ void checkSerialCommand (void) {
             case 'g':
                 showActuatorState();
                 break;
+            case 'c':
+                fetchCommandFromFirebase();
+                break;
             // case 'd':
             //     IPAddress serverIP;
             //     if (WiFi.hostByName("pool.ntp.org", serverIP)) {
@@ -1333,6 +1336,7 @@ void printSerialCommandList (void) {
     Serial.println(F("H - Force sync sensor threshold with Firebase"));
     Serial.println(F("a - Show alert status"));
     Serial.println(F("g - Show actuator state"));
+    Serial.println(F("c - Force Fetch command from Firebase"));
     Serial.println(F("i - Print this Command List"));
 }
 

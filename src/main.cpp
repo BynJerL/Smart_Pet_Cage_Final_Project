@@ -241,7 +241,7 @@ void fetchCommandFromFirebase(void);
 void fetchCommandFromFirebasePeriodically (void);
 void toggleCommandPolling (void);
 void executeCommand (const String& action, const String& target);
-void deleteCommandFromFirebase (const String& commandKey);
+bool deleteCommandFromFirebase (const String& commandKey);
 
 void readEEPROM();
 void writeEEPROM(const char* newSsid, const char* newPass);
@@ -1924,4 +1924,24 @@ void executeCommand (const String& action, const String& target) {
     }
 
     Serial.println(F("[Command] Unknown action/target"));
+}
+
+bool deleteCommandFromFirebase (const String& commandKey) {
+    fbClient.setInsecure();
+
+    String url = String(FIREBASE_URL) + "/commands/" + commandKey + ".json";
+    url = withAuth(url);
+
+    http.begin(fbClient, url);
+    int code = http.sendRequest("DELETE");
+    http.end();
+
+    if (code == HTTP_CODE_OK) {
+        Serial.println(F("[Command] Deleted successfully"));
+        return true;
+    }
+
+    Serial.print(F("[Command] Delete failed: "));
+    Serial.println(code);
+    return false;
 }

@@ -242,6 +242,7 @@ void fetchCommandFromFirebasePeriodically (void);
 void toggleCommandPolling (void);
 void executeCommand (const String& action, const String& target);
 bool deleteCommandFromFirebase (const String& commandKey);
+void syncSchedule (void);
 
 void readEEPROM();
 void writeEEPROM(const char* newSsid, const char* newPass);
@@ -1944,4 +1945,20 @@ bool deleteCommandFromFirebase (const String& commandKey) {
     Serial.print(F("[Command] Delete failed: "));
     Serial.println(code);
     return false;
+}
+
+void syncSchedule (void) {
+    if (WiFi.status() != WL_CONNECTED) {
+        if (sdInitialized) {
+            loadScheduleFromSDCard();
+        } else {
+            /* Add default schedule
+               Water => 09:00, 13:00, 17:00
+               Food  => 09:00, 17:00
+            */ 
+        }
+        return;
+    }
+
+    loadScheduleFromFirebaseToRAM();
 }

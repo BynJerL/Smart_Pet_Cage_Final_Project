@@ -275,6 +275,13 @@ void updateRGBMode (void);
 void watchdog (void);                   // Additional features (develop later)
 void sendDeviceHeartbeat (void);        // Additional features (develop later)
 
+// In Development
+void initializeFoodLevelSensor (void);
+void initializeWaterLevelSensor (void);
+void checkFoodLevel (void);
+void checkWaterLevel (void);
+
+// Actuator Control Helper Function
 void setRelayOn (uint8_t relayBitPos);
 void setRelayOff (uint8_t relayBitPos);
 void toggleRelay (uint8_t relayBitPos);

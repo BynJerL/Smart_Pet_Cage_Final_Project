@@ -256,6 +256,10 @@ void stopFeeder (void);
 
 void toggleGate (void);
 void toggleFan (void);
+void enableGate (void);
+void enableFan (void);
+void disableGate (void);
+void disableFan (void);
 
 void readAHTdata (void);
 void readBMPdata (void);
@@ -472,7 +476,7 @@ void initializeRGB (void) {
         Serial.println(F("ERROR: Could not initialize RGB LED! Check wiring and connections."));
         return;
     }
-    rgb.setBrightness(35);
+    rgb.setBrightness(100);
     rgb.clear();
     rgb.show(); // Initialize all pixels to 'off'
 
@@ -1570,6 +1574,30 @@ void toggleFan(void) {
     Serial.println(F("Fan toggled"));
 }
 
+void enableFan (void) {
+    setRelayOn(FAN_RELAY);
+    applyRelayState();
+    Serial.println(F("Fan enabled"));
+}
+
+void enableGate (void) {
+    setRelayOn(GATE_RELAY);
+    applyRelayState();
+    Serial.println(F("Gate opened"));
+}
+
+void disableFan (void) {
+    setRelayOff(FAN_RELAY);
+    applyRelayState();
+    Serial.println(F("Fan disabled"));
+}
+
+void disableGate (void) {
+    setRelayOff(GATE_RELAY);
+    applyRelayState();
+    Serial.println(F("Gate closed"));
+}
+
 bool saveScheduleToSDCard (void) {
     if (!sdInitialized) {
         Serial.println(F("[SD] SD not initialized. Cannot save schedule."));
@@ -1859,4 +1887,41 @@ void toggleCommandPolling (void) {
     Serial.println("[CMD] Toggle Command Polling ...");
     isCommandPollPeriodically = !isCommandPollPeriodically;
     Serial.print("> Set to "); Serial.println((isCommandPollPeriodically)? "True" : "False");
+}
+
+void executeCommand (const String& action, const String& target) {
+    if (action == "reload") {
+        if (target == "schedule") {
+            loadScheduleFromFirebaseToRAM();
+            saveScheduleToSDCard();
+        }
+        if (target == "threshold") {
+            updateSensorThresholdFromFirebase();
+        }
+        return;
+    }
+
+    if (action == "enable") {
+        if (target == "fan") enableFan();
+        if (target == "gate") enableGate();
+        if (target == "pump") startPump();
+        if (target == "feeder") startFeeder();
+        return;
+    }
+
+    if (action == "disable") {
+        if (target == "fan") disableFan();
+        if (target == "gate") disableGate();
+        if (target == "pump") stopPump();
+        if (target == "feeder") stopFeeder();
+        return;
+    }
+
+    if (action == "toggle") {
+        if (target == "fan") toggleFan();
+        if (target == "gate") toggleGate();
+        return;
+    }
+
+    Serial.println(F("[Command] Unknown action/target"));
 }

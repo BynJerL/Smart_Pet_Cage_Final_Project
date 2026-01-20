@@ -355,7 +355,10 @@ function updateThreshold() {
 
 buildScheduleUI("feeder");
 buildScheduleUI("water");
-loadSchedule();
+
+setTimeout(() => {
+  loadSchedule();
+}, 500);
 
 </script>
 

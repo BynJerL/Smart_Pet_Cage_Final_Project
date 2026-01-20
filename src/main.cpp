@@ -254,6 +254,7 @@ bool deleteCommandFromFirebase (const String& commandKey);
 void syncSchedule (void);
 void processCommand (void);
 void cleanOngoingCommand (void);
+void loadDefaultSchedule (void);
 
 void readEEPROM();
 void writeEEPROM(const char* newSsid, const char* newPass);
@@ -1983,6 +1984,7 @@ void syncSchedule (void) {
                Water => 09:00, 13:00, 17:00
                Food  => 09:00, 17:00
             */ 
+            loadDefaultSchedule();
         }
         return;
     }
@@ -1997,7 +1999,7 @@ void processCommand (void) {
 
     executeCommand(ongoingCommand.action, ongoingCommand.target);
     isCommandExecuted = true;
-    
+
     /* ACK */ 
     if (deleteCommandFromFirebase(ongoingCommand.key)) cleanOngoingCommand();
 }
@@ -2008,4 +2010,46 @@ void cleanOngoingCommand (void) {
     ongoingCommand.action = "";
     ongoingCommand.target = "";
     isCommandExecuted = false;
+}
+
+void loadDefaultSchedule (void) {
+    Serial.println(F("[Schedule] Loading default schedule..."));
+    
+    // Clear all schedules first
+    for (int i = 0; i < MAX_SCHEDULES; i++) {
+        schedules[i].enabled = false;
+        schedules[i].executed = false;
+        schedules[i].time[0] = '\0';
+    }
+    
+    // Water => 09:00, 13:00, 17:00
+    schedules[0].enabled = true;
+    schedules[0].type = SCHED_WATER;
+    strncpy(schedules[0].time, "09:00", 6);
+    schedules[0].executed = false;
+    
+    schedules[1].enabled = true;
+    schedules[1].type = SCHED_WATER;
+    strncpy(schedules[1].time, "13:00", 6);
+    schedules[1].executed = false;
+    
+    schedules[2].enabled = true;
+    schedules[2].type = SCHED_WATER;
+    strncpy(schedules[2].time, "17:00", 6);
+    schedules[2].executed = false;
+    
+    // Feeder => 09:00, 17:00
+    schedules[3].enabled = true;
+    schedules[3].type = SCHED_FEEDER;
+    strncpy(schedules[3].time, "09:00", 6);
+    schedules[3].executed = false;
+    
+    schedules[4].enabled = true;
+    schedules[4].type = SCHED_FEEDER;
+    strncpy(schedules[4].time, "17:00", 6);
+    schedules[4].executed = false;
+    
+    Serial.println(F("[Schedule] Default schedule loaded:"));
+    Serial.println(F("  Water: 09:00, 13:00, 17:00"));
+    Serial.println(F("  Feeder: 09:00, 17:00"));
 }

@@ -128,6 +128,7 @@ struct Command {
 ActuatorTimer pumpTimer   = { false, 0, PUMP_ACTIVE_DUR };
 ActuatorTimer feederTimer = { false, 0, FEEDER_ACTIVE_DUR };
 ScheduleSlot schedules[MAX_SCHEDULES];
+Command ongoingCommand = {"", "", ""};
 
 bool rtcInitialized = false;
 bool sdInitialized = false;
@@ -140,6 +141,8 @@ bool rgbInitialized = false;
 
 bool isSendDataPeriodically = DEF_SEND_DATA_PERIODICALLY;
 bool isCommandPollPeriodically = DEF_POLL_CMD_PERIODICALLY;
+
+bool isCommandExecuted = false;
 
 byte buttonState = 0b01111111; // Only use 7 bit
 byte lastButtonState = 0b01111111; // Only use 7 bit
@@ -243,13 +246,14 @@ void updateSensorThresholdFromFirebase (void);
 void checkSensorThreshold (void);
 void toggleSendDataToFirebase (void);
 void showActuatorState (void);
-void fetchCommandFromFirebase(void);
+bool fetchCommandFromFirebase(void);
 void fetchCommandFromFirebasePeriodically (void);
 void toggleCommandPolling (void);
 void executeCommand (const String& action, const String& target);
 bool deleteCommandFromFirebase (const String& commandKey);
 void syncSchedule (void);
 void processCommand (void);
+void cleanOngoingCommand (void);
 
 void readEEPROM();
 void writeEEPROM(const char* newSsid, const char* newPass);
@@ -1839,8 +1843,10 @@ String withAuth(String url) {
   return url;
 }
 
-void fetchCommandFromFirebase (void) {
-    if (WiFi.status() != WL_CONNECTED) return;
+bool fetchCommandFromFirebase (void) {
+    if (WiFi.status() != WL_CONNECTED) return false;
+    // Will not fetching command if previous command haven't executed
+    if (ongoingCommand.key != "" && ongoingCommand.action != "" && ongoingCommand.target != "") return false;
 
     fbClient.setInsecure();
 
@@ -1857,18 +1863,18 @@ void fetchCommandFromFirebase (void) {
 
     if (httpCode != HTTP_CODE_OK) {
         http.end();
-        return;
+        return false;
     }
 
     String payload = http.getString();
     http.end();
 
-    if (payload == "null") return;
+    if (payload == "null") return false;
 
     // ---- Parse key ----
     int keyStart = payload.indexOf('{') + 1;
     int keyEnd   = payload.indexOf(':', keyStart);
-    if (keyStart <= 0 || keyEnd <= 0) return;
+    if (keyStart <= 0 || keyEnd <= 0) return false;
 
     String key = payload.substring(keyStart, keyEnd);
     key.replace("\"", "");
@@ -1885,10 +1891,15 @@ void fetchCommandFromFirebase (void) {
     int tQ2  = payload.indexOf("\"", tQ1 + 1);
     String target = payload.substring(tQ1 + 1, tQ2);
 
+    ongoingCommand.key = key;
+    ongoingCommand.action = action;
+    ongoingCommand.target = target;
+
     Serial.println(F("[Command] Received"));
     Serial.print(F("  Key    : ")); Serial.println(key);
     Serial.print(F("  Action : ")); Serial.println(action);
     Serial.print(F("  Target : ")); Serial.println(target);
+    return true;
 }
 
 void fetchCommandFromFirebasePeriodically (void) {
@@ -1905,6 +1916,8 @@ void toggleCommandPolling (void) {
 }
 
 void executeCommand (const String& action, const String& target) {
+    if (action == "" && target == "") return;
+
     if (action == "reload") {
         if (target == "schedule") {
             loadScheduleFromFirebaseToRAM();
@@ -1975,4 +1988,24 @@ void syncSchedule (void) {
     }
 
     loadScheduleFromFirebaseToRAM();
+}
+
+void processCommand (void) {
+    if (!fetchCommandFromFirebase()) {
+        return;
+    }
+
+    executeCommand(ongoingCommand.action, ongoingCommand.target);
+    isCommandExecuted = true;
+    
+    /* ACK */ 
+    if (deleteCommandFromFirebase(ongoingCommand.key)) cleanOngoingCommand();
+}
+
+/* Clean Command Storage */ 
+void cleanOngoingCommand (void) {
+    ongoingCommand.key = "";
+    ongoingCommand.action = "";
+    ongoingCommand.target = "";
+    isCommandExecuted = false;
 }

@@ -1900,7 +1900,7 @@ void fetchCommandFromFirebasePeriodically (void) {
     unsigned long now = millis();
     if (now - lastCommandPoll < COMMAND_POLL_INTERVAL_MS || !isCommandPollPeriodically) return;
     lastCommandPoll = now;
-    fetchCommandFromFirebase();
+    processCommand();
 }
 
 void toggleCommandPolling (void) {

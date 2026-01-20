@@ -119,6 +119,12 @@ struct ActuatorTimer {
     unsigned long duration;
 };
 
+struct Command {
+    String key;
+    String action;
+    String target;
+};
+
 ActuatorTimer pumpTimer   = { false, 0, PUMP_ACTIVE_DUR };
 ActuatorTimer feederTimer = { false, 0, FEEDER_ACTIVE_DUR };
 ScheduleSlot schedules[MAX_SCHEDULES];
@@ -243,6 +249,7 @@ void toggleCommandPolling (void);
 void executeCommand (const String& action, const String& target);
 bool deleteCommandFromFirebase (const String& commandKey);
 void syncSchedule (void);
+void processCommand (void);
 
 void readEEPROM();
 void writeEEPROM(const char* newSsid, const char* newPass);

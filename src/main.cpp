@@ -16,6 +16,7 @@
 #include <Adafruit_BMP280.h>
 #include <LiquidCrystal_I2C.h>
 #include <Adafruit_NeoPixel.h>
+#include "esp_heap_caps.h"
 
 #define L_BUTTON      P0
 #define C_BUTTON      P1
@@ -298,6 +299,11 @@ void setRelayOn (uint8_t relayBitPos);
 void setRelayOff (uint8_t relayBitPos);
 void toggleRelay (uint8_t relayBitPos);
 
+void handleRoot (void);
+void handleSave (void);
+void handleRetry (void);
+void printHeap (void);
+
 String withAuth(String url);
 
 void setup () {
@@ -308,6 +314,8 @@ void setup () {
     initializeSensors();
     initializeDisplay();
     initializeRGB();
+    initializeRTC();
+    initializeSDCardReader();
 
     /* WiFi Setup */ 
     WiFi.mode(WIFI_STA);
@@ -324,7 +332,9 @@ void setup () {
         } else {
             Serial.println(F("WiFi failed, entering config mode"));
             isConfigMode = true;
+            printHeap();
             startConfigAP();
+            printHeap();
             return; // stop normal boot
         }
     } else {
@@ -335,9 +345,7 @@ void setup () {
     }
 
     initializeNTP();
-    initializeRTC();
     checkAndSyncRTCOnBoot();
-    initializeSDCardReader();
     loadScheduleFromSDCard();
 
     Serial.println(F("Setup completed."));
@@ -356,6 +364,7 @@ void loop () {
 
     if (isConfigMode) {
         server.handleClient();
+        delay(5);
     }
 
     updateDisplayUI();
@@ -1150,37 +1159,19 @@ bool connectWiFi() {
 }
 
 void startConfigAP() {
-  WiFi.mode(WIFI_AP);
-  WiFi.softAP("ESP32S3_SmartPetCage");
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP("ESP32S3_SmartPetCage");
 
-  Serial.println("AP Mode Started");
-  Serial.print("AP IP: ");
-  Serial.println(WiFi.softAPIP());
+    Serial.println("AP Mode Started");
+    Serial.print("AP IP: ");
+    Serial.println(WiFi.softAPIP());
 
-  server.on("/", []() {
-    server.send(200, "text/html", configPage());
-  });
+    server.on("/", HTTP_GET, handleRoot);
+    server.on("/save", HTTP_POST, handleSave);
+    server.on("/retry", HTTP_POST, handleRetry);
 
-  server.on("/save", HTTP_POST, []() {
-    String newSsid = server.arg("ssid");
-    String newPass = server.arg("pass");
 
-    writeEEPROM(newSsid.c_str(), newPass.c_str());
-
-    server.send(200, "text/html",
-      "<h3>Saved! Rebooting...</h3>");
-
-    delay(2000);
-    ESP.restart();
-  });
-
-  server.on("/retry", HTTP_POST, []() {
-    server.send(200, "text/plain", "Device will reboot and attempt to reconnect using saved WiFi.");
-    delay(200);
-    ESP.restart();
-  });
-
-  server.begin();
+    server.begin();
 }
 
 bool updateScheduleFromCloud(void) {
@@ -2052,4 +2043,31 @@ void loadDefaultSchedule (void) {
     Serial.println(F("[Schedule] Default schedule loaded:"));
     Serial.println(F("  Water: 09:00, 13:00, 17:00"));
     Serial.println(F("  Feeder: 09:00, 17:00"));
+}
+
+void handleRoot() {
+  server.send(200, "text/html", configPage());
+}
+
+void handleSave() {
+  String newSsid = server.arg("ssid");
+  String newPass = server.arg("pass");
+
+  writeEEPROM(newSsid.c_str(), newPass.c_str());
+
+  server.send(200, "text/html", "<h3>Saved! Rebooting...</h3>");
+  delay(1000);
+  ESP.restart();
+}
+
+void handleRetry() {
+  server.send(200, "text/plain",
+              "Device will reboot and attempt to reconnect using saved WiFi.");
+  delay(500);
+  ESP.restart();
+}
+
+void printHeap() {
+  Serial.print("Free heap: ");
+  Serial.println(ESP.getFreeHeap());
 }

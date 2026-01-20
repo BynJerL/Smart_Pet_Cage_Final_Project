@@ -343,6 +343,7 @@ function updateThreshold() {
   })
   .then(res => {
     if (!res.ok) throw "Failed to save threshold";
+    sendCommand("threshold", "reload");
     msg.textContent = "Threshold updated successfully";
     msg.style.color = "#22c55e";
   })

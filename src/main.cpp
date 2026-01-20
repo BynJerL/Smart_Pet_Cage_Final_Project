@@ -253,6 +253,7 @@ void toggleCommandPolling (void);
 void executeCommand (const String& action, const String& target);
 bool deleteCommandFromFirebase (const String& commandKey);
 void syncSchedule (void);
+void syncSensorThreshold (void);
 void processCommand (void);
 void cleanOngoingCommand (void);
 void loadDefaultSchedule (void);
@@ -347,6 +348,8 @@ void setup () {
     initializeNTP();
     checkAndSyncRTCOnBoot();
     loadScheduleFromSDCard();
+    syncSchedule();
+    syncSensorThreshold();
 
     Serial.println(F("Setup completed."));
     Serial.println(F("Try to tap the buttons or send \'i\' to check available commands."));
@@ -1983,6 +1986,11 @@ void syncSchedule (void) {
     }
 
     loadScheduleFromFirebaseToRAM();
+}
+
+void syncSensorThreshold (void) {
+    if (WiFi.status() != WL_CONNECTED) return;
+    updateSensorThresholdFromFirebase();
 }
 
 void processCommand (void) {

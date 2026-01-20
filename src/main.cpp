@@ -745,6 +745,9 @@ void checkSerialCommand (void) {
                 Serial.println("RGB test complete");
                 }
                 break;
+            case '/':
+                processCommand();
+                break;
             // case 'd':
             //     IPAddress serverIP;
             //     if (WiFi.hostByName("pool.ntp.org", serverIP)) {
@@ -1406,6 +1409,7 @@ void printSerialCommandList (void) {
     Serial.println(F("C - Toggle periodic command polling"));
     Serial.println(F(". - Update RGB mode"));
     Serial.println(F("z - Test RGB"));
+    Serial.println(F("/ - Force Fetch & Process Command"));
     Serial.println(F("i - Print this Command List"));
 }
 
@@ -1837,9 +1841,7 @@ String withAuth(String url) {
 
 bool fetchCommandFromFirebase (void) {
     if (WiFi.status() != WL_CONNECTED) return false;
-    // Will not fetching command if previous command haven't executed
-    if (ongoingCommand.key != "" && ongoingCommand.action != "" && ongoingCommand.target != "") return false;
-
+    
     fbClient.setInsecure();
 
     String url = String(FIREBASE_URL)
@@ -1984,7 +1986,9 @@ void syncSchedule (void) {
 }
 
 void processCommand (void) {
-    if (!fetchCommandFromFirebase()) {
+    if (ongoingCommand.key != "" && ongoingCommand.action != "" && ongoingCommand.target != "") {
+        // Pass. Commmand already fetched
+    } else if (!fetchCommandFromFirebase()) {
         return;
     }
 

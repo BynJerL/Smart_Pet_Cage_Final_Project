@@ -308,6 +308,8 @@ void readRawFoodSensorDistance (void);
 void readRawWaterSensorDistance (void);
 void checkFoodLevel (void);
 void checkWaterLevel (void);
+void showFoodLevelData (void);
+void showWaterLevelData (void);
 
 // Actuator Control Helper Function
 void setRelayOn (uint8_t relayBitPos);
@@ -1459,6 +1461,8 @@ void readSensorsData (void) {
     readAHTdata();
     readBMPdata();
     readMotionSensorData();
+    readRawWaterSensorDistance();
+    checkWaterLevel();
 
     checkAlerts();
 }
@@ -1492,6 +1496,7 @@ void showSensorsData (void) {
     showSavedAHTdata();
     showSavedBMPdata();
     showMotionSensorData();
+    showWaterLevelData();
 }
 
 void checkAlerts (void) {
@@ -2125,4 +2130,24 @@ void checkFoodLevel (void) {
 void checkWaterLevel (void) {
     // Without 0 - 100 guard
     waterLevelPercent = 100 * (waterEmptyDistance - rawWaterSensorDistance) / (waterEmptyDistance - waterFullDistance);
+}
+
+void showFoodLevelData (void) {
+    Serial.print(F("Raw Food Sensor Distance: "));
+    Serial.print(rawFoodSensorDistance);
+    Serial.println(F(" cm"));
+    
+    Serial.print(F("Food Level: "));
+    Serial.print(foodLevelPercent);
+    Serial.println(F(" %"));
+}
+
+void showWaterLevelData (void) {
+    Serial.print(F("Raw Water Sensor Distance: "));
+    Serial.print(rawWaterSensorDistance);
+    Serial.println(F(" cm"));
+
+    Serial.print(F("Water Level: "));
+    Serial.print(waterLevelPercent);
+    Serial.println(F(" %"));
 }

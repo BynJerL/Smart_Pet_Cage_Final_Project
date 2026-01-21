@@ -192,6 +192,11 @@ float foodHighThreshold = HIGH_FOOD_THRESHOLD;
 float waterLowThreshold = LOW_WATER_THRESHOLD;
 float waterHighThreshold = HIGH_WATER_THRESHOLD;
 
+float foodFullDistance = 29.0;      // cm
+float foodEmptyDistance = 33.0;     // cm
+float waterFullDistance = 29.0;     // cm
+float waterEmptyDistance = 33.0;    // cm
+
 bool tempHighAlertActive = false;
 bool tempLowAlertActive = false;
 bool humHighAlertActive = false;
@@ -2111,4 +2116,13 @@ void readRawWaterSensorDistance (void) {
 
     long duration = pulseIn(WATER_SENSOR_ECHO_PIN, HIGH, 30000); // 30ms timeout
     rawWaterSensorDistance = duration * 0.034 / 2; // Convert to cm
+}
+
+void checkFoodLevel (void) {
+    foodLevelPercent = 100 * (foodEmptyDistance - rawFoodSensorDistance) / (foodEmptyDistance - foodFullDistance);
+}
+
+void checkWaterLevel (void) {
+    // Without 0 - 100 guard
+    waterLevelPercent = 100 * (waterEmptyDistance - rawWaterSensorDistance) / (waterEmptyDistance - waterFullDistance);
 }

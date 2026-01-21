@@ -513,6 +513,8 @@ void initializeSensors (void) {
     initializeAHT();
     initializeBMP();
     initializeMotionSensor();
+    initializeFoodLevelSensor();
+    initializeWaterLevelSensor();
 }
 void initializeDisplay (void) {
     lcd.init();
@@ -531,6 +533,9 @@ void initializeRGB (void) {
     rgbInitialized = true;
 
     Serial.println(F("RGB LED initialized successfully."));
+}
+void initializeFoodLevelSensor (void) {
+    // To be implemented later
 }
 void initializeWaterLevelSensor (void) {
     pinMode(WATER_SENSOR_TRIG_PIN, OUTPUT);
@@ -1438,6 +1443,7 @@ void printSerialCommandList (void) {
 }
 
 void readAHTdata (void) {
+    if (!ahtInitialized) return;
     sensors_event_t humidity, temp;
     aht.getEvent(&humidity, &temp);
 
@@ -1446,6 +1452,7 @@ void readAHTdata (void) {
 }
 
 void readBMPdata (void) {
+    if (!bmpInitialized) return;
     bmpPressure = bmp.readPressure() / 100.0F; // Convert to hPa
     bmpAltitude = bmp.readAltitude();
 }
@@ -1455,7 +1462,6 @@ void readMotionSensorData (void) {
 }
 
 void readSensorsData (void) {
-    if (!ahtInitialized || !bmpInitialized) return;
     if (millis() - lastSensorReadTime < SENSOR_READ_INTERVAL_MS) return;
     lastSensorReadTime = millis();
     readAHTdata();
@@ -1500,54 +1506,56 @@ void showSensorsData (void) {
 }
 
 void checkAlerts (void) {
-    /* Temperature */ 
-    if (ahtTemperature >= tempHighThreshold) {
-        if (!tempHighAlertActive) {
-            Serial.println(F("[ALERT] Temperature TOO HIGH!"));
-            Serial.print(F(" Value: "));
-            Serial.print(ahtTemperature);
-            Serial.println(F(" °C"));
-            tempHighAlertActive = true;
+    if (ahtInitialized) {
+        /* Temperature */ 
+        if (ahtTemperature >= tempHighThreshold) {
+            if (!tempHighAlertActive) {
+                Serial.println(F("[ALERT] Temperature TOO HIGH!"));
+                Serial.print(F(" Value: "));
+                Serial.print(ahtTemperature);
+                Serial.println(F(" °C"));
+                tempHighAlertActive = true;
+            }
+        } else {
+            tempHighAlertActive = false;
         }
-    } else {
-        tempHighAlertActive = false;
-    }
 
-    if (ahtTemperature <= tempLowThreshold) {
-        if (!tempLowAlertActive) {
-            Serial.println(F("[ALERT] Temperature TOO LOW!"));
-            Serial.print(F("  Value: "));
-            Serial.print(ahtTemperature);
-            Serial.println(F(" °C"));
-            tempLowAlertActive = true;
+        if (ahtTemperature <= tempLowThreshold) {
+            if (!tempLowAlertActive) {
+                Serial.println(F("[ALERT] Temperature TOO LOW!"));
+                Serial.print(F("  Value: "));
+                Serial.print(ahtTemperature);
+                Serial.println(F(" °C"));
+                tempLowAlertActive = true;
+            }
+        } else {
+            tempLowAlertActive = false;
+        } 
+        
+        /* Humidity */ 
+        if (ahtHumidity >= humHighThreshold) {
+            if (!humHighAlertActive) {
+                Serial.println(F("[ALERT] Humidity TOO HIGH!"));
+                Serial.print(F("  Value: "));
+                Serial.print(ahtHumidity);
+                Serial.println(F(" %"));
+                humHighAlertActive = true;
+            }
+        } else {
+            humHighAlertActive = false;
         }
-    } else {
-        tempLowAlertActive = false;
-    }
 
-    /* Humidity */ 
-    if (ahtHumidity >= humHighThreshold) {
-        if (!humHighAlertActive) {
-            Serial.println(F("[ALERT] Humidity TOO HIGH!"));
-            Serial.print(F("  Value: "));
-            Serial.print(ahtHumidity);
-            Serial.println(F(" %"));
-            humHighAlertActive = true;
+        if (ahtHumidity <= humLowThreshold) {
+            if (!humLowAlertActive) {
+                Serial.println(F("[ALERT] Humidity TOO LOW!"));
+                Serial.print(F("  Value: "));
+                Serial.print(ahtHumidity);
+                Serial.println(F(" %"));
+                humLowAlertActive = true;
+            }
+        } else {
+            humLowAlertActive = false;
         }
-    } else {
-        humHighAlertActive = false;
-    }
-
-    if (ahtHumidity <= humLowThreshold) {
-        if (!humLowAlertActive) {
-            Serial.println(F("[ALERT] Humidity TOO LOW!"));
-            Serial.print(F("  Value: "));
-            Serial.print(ahtHumidity);
-            Serial.println(F(" %"));
-            humLowAlertActive = true;
-        }
-    } else {
-        humLowAlertActive = false;
     }
 
     /* Motion */
@@ -2120,6 +2128,12 @@ void readRawWaterSensorDistance (void) {
     digitalWrite(WATER_SENSOR_TRIG_PIN, LOW);
 
     long duration = pulseIn(WATER_SENSOR_ECHO_PIN, HIGH, 30000); // 30ms timeout
+    
+    if (duration == 0) {
+        Serial.println(F("[Water Sensor] No response - Check wiring and power"));
+        return;
+    }
+    
     rawWaterSensorDistance = duration * 0.034 / 2; // Convert to cm
 }
 
@@ -2129,7 +2143,16 @@ void checkFoodLevel (void) {
 
 void checkWaterLevel (void) {
     // Without 0 - 100 guard
+    if (waterEmptyDistance == waterFullDistance) {
+        Serial.println(F("[Water] ERROR: Empty and Full distances are the same!"));
+        waterLevelPercent = 0;
+        return;
+    }
+
     waterLevelPercent = 100 * (waterEmptyDistance - rawWaterSensorDistance) / (waterEmptyDistance - waterFullDistance);
+
+    if (waterLevelPercent < 0) waterLevelPercent = 0;
+    if (waterLevelPercent > 100) waterLevelPercent = 100;
 }
 
 void showFoodLevelData (void) {

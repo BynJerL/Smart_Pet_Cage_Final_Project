@@ -33,6 +33,9 @@
 #define MOTION_SENSOR_PIN 5
 #define RGB_LED       48
 
+#define WATER_SENSOR_ECHO_PIN 17
+#define WATER_SENSOR_TRIG_PIN 18
+
 #define SD_CS   10
 #define SD_MOSI 11
 #define SD_MISO 13
@@ -515,6 +518,11 @@ void initializeRGB (void) {
     rgbInitialized = true;
 
     Serial.println(F("RGB LED initialized successfully."));
+}
+void initializeWaterLevelSensor (void) {
+    pinMode(WATER_SENSOR_TRIG_PIN, OUTPUT);
+    pinMode(WATER_SENSOR_ECHO_PIN, INPUT);
+    Serial.println(F("Water Level Sensor initialized successfully."));
 }
 
 void readRawButtonInput (void) {

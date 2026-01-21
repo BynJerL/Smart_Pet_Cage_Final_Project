@@ -177,6 +177,10 @@ float ahtHumidity = 0.0;
 float bmpPressure = 0.0;
 float bmpAltitude = 0.0; 
 bool motionDetected = false;
+float foodLevelPercent = 0.0;
+float waterLevelPercent = 0.0;
+float rawFoodSensorDistance = 0.0;
+float rawWaterSensorDistance = 0.0;
 
 /* Threshold Storage (Use default for now) */ 
 float tempHighThreshold = DEF_HIGH_TEMP_THRESHOLD;
@@ -295,6 +299,8 @@ void sendDeviceHeartbeat (void);        // Additional features (develop later)
 // In Development
 void initializeFoodLevelSensor (void);
 void initializeWaterLevelSensor (void);
+void readRawFoodSensorDistance (void);
+void readRawWaterSensorDistance (void);
 void checkFoodLevel (void);
 void checkWaterLevel (void);
 
@@ -2090,4 +2096,19 @@ void handleRetry() {
 void printHeap() {
   Serial.print("Free heap: ");
   Serial.println(ESP.getFreeHeap());
+}
+
+void readRawFoodSensorDistance (void) {
+    // To be implemented later
+}
+
+void readRawWaterSensorDistance (void) {
+    digitalWrite(WATER_SENSOR_TRIG_PIN, LOW);
+    delayMicroseconds(2);
+    digitalWrite(WATER_SENSOR_TRIG_PIN, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(WATER_SENSOR_TRIG_PIN, LOW);
+
+    long duration = pulseIn(WATER_SENSOR_ECHO_PIN, HIGH, 30000); // 30ms timeout
+    rawWaterSensorDistance = duration * 0.034 / 2; // Convert to cm
 }

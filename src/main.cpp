@@ -60,6 +60,7 @@
 #define UI_REFRESH_INTERVAL_MS        200
 #define SENSOR_DATA_PATCH_INTERVAL_MS 6000    // Keep the system responsive
 #define COMMAND_POLL_INTERVAL_MS      5000
+#define ACTUATOR_CONTROL_COOLDOWN     5000    // 5s cooldown
 
 #define TIMEZONE_OFFSET_SEC         (7 * 3600)
 #define NTP_SYNC_INTERVAL           (6UL * 60UL * 60UL * 1000UL)
@@ -278,6 +279,7 @@ void syncSensorThreshold (void);
 void processCommand (void);
 void cleanOngoingCommand (void);
 void loadDefaultSchedule (void);
+void sendLogToFirebase (void);
 
 void readEEPROM();
 void writeEEPROM(const char* newSsid, const char* newPass);
@@ -2167,11 +2169,26 @@ void readRawWaterSensorDistance (void) {
 }
 
 void checkFoodLevel (void) {
+    if (foodEmptyDistance == foodFullDistance) {
+        Serial.println(F("[Food] ERROR: Empty and Full distance are the same!"));
+        foodLevelPercent = 0;
+        return;
+    }
+
     foodLevelPercent = 100 * (foodEmptyDistance - rawFoodSensorDistance) / (foodEmptyDistance - foodFullDistance);
+
+    if (foodLevelPercent < 0) {
+        foodLevelPercent = 0; 
+        return;
+    }
+
+    if (foodLevelPercent > 100) {
+        foodLevelPercent = 100;
+        return;
+    }
 }
 
 void checkWaterLevel (void) {
-    // Without 0 - 100 guard
     if (waterEmptyDistance == waterFullDistance) {
         Serial.println(F("[Water] ERROR: Empty and Full distances are the same!"));
         waterLevelPercent = 0;
@@ -2180,8 +2197,15 @@ void checkWaterLevel (void) {
 
     waterLevelPercent = 100 * (waterEmptyDistance - rawWaterSensorDistance) / (waterEmptyDistance - waterFullDistance);
 
-    if (waterLevelPercent < 0) waterLevelPercent = 0;
-    if (waterLevelPercent > 100) waterLevelPercent = 100;
+    if (waterLevelPercent < 0) {
+        waterLevelPercent = 0;
+        return;
+    }
+    
+    if (waterLevelPercent > 100) {
+        waterLevelPercent = 100;
+        return;
+    }
 }
 
 void showFoodLevelData (void) {

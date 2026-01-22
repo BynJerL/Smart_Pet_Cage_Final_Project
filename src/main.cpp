@@ -287,6 +287,12 @@ bool sendLogToFirebase (
     const String& source,
     const String& reason
 );
+void logEventToSDCard (
+    const char* category,
+    const char* source,
+    const char* action,
+    const char* value = ""
+);
 
 void readEEPROM();
 void writeEEPROM(const char* newSsid, const char* newPass);
@@ -338,6 +344,7 @@ void handleRoot (void);
 void handleSave (void);
 void handleRetry (void);
 void printHeap (void);
+String getTimestamp();
 
 String withAuth(String url);
 
@@ -2283,4 +2290,45 @@ bool sendLogToFirebase (
 
     http.end();
     return (code > 0);
+}
+
+void logEventToSDCard (
+    const char* category,
+    const char* source,
+    const char* action,
+    const char* value
+) {
+    if (!sdInitialized) {
+        Serial.println(F("[LOG] SD not initialized, log skipped"));
+        return;
+    }
+
+    File logFile = SD.open("/event_log.csv", FILE_APPEND);
+    if (!logFile) {
+        Serial.println(F("[LOG] Failed to open event_log.csv"));
+        return;
+    }
+
+    String line =
+        getTimestamp() + "," +
+        category + "," +
+        source + "," +
+        action + "," +
+        value + "\n";
+
+    logFile.print(line);
+    logFile.close();
+
+    Serial.print(F("[LOG] "));
+    Serial.print(line);
+}
+
+String getTimestamp() {
+    DateTime now = rtc.now();
+    char buf[20];
+    snprintf(buf, sizeof(buf),
+             "%04d-%02d-%02d %02d:%02d:%02d",
+             now.year(), now.month(), now.day(),
+             now.hour(), now.minute(), now.second());
+    return String(buf);
 }

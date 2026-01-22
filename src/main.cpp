@@ -432,7 +432,12 @@ void initializeRelays (void) {
     Serial.println(F("relays\' PCF8574 initialized successfully."));
 }
 void initializeFeeder (void) {
-    pinMode(FEEDER_PIN, OUTPUT);
+    ESP32PWM::allocateTimer(0);
+	ESP32PWM::allocateTimer(1);
+	ESP32PWM::allocateTimer(2);
+	ESP32PWM::allocateTimer(3);
+    feeder.setPeriodHertz(50);
+    feeder.attach(FEEDER_PIN, 500, 2400);
     Serial.println(F("feeder initialized successfully."));
 }
 void initializeRTC (void) {
@@ -883,14 +888,14 @@ void startFeeder(void) {
     feederTimer.startTime = millis();
 
     // For now: LED / relay simulation
-    analogWrite(FEEDER_PIN, 255);
+    feeder.write(180);
     isFeederRunning = true;
     Serial.println(F("Feeder ON"));
 }
 
 void stopFeeder(void) {
     feederTimer.active = false;
-    analogWrite(FEEDER_PIN, 0);
+    feeder.write(0);
     isFeederRunning = false;
     Serial.println(F("Feeder OFF"));
 }

@@ -38,6 +38,9 @@
 #define SD_CARD_IND         P4
 #define DOG_BARK_IND        P5
 
+#define FOOD_SENSOR_ECHO_PIN 47
+#define FOOD_SENSOR_TRIG_PIN 21
+
 #define WATER_SENSOR_ECHO_PIN 17
 #define WATER_SENSOR_TRIG_PIN 18
 
@@ -541,7 +544,9 @@ void initializeRGB (void) {
     Serial.println(F("RGB LED initialized successfully."));
 }
 void initializeFoodLevelSensor (void) {
-    // To be implemented later
+    pinMode(FOOD_SENSOR_TRIG_PIN, OUTPUT);
+    pinMode(FOOD_SENSOR_ECHO_PIN, INPUT);
+    Serial.println(F("Food Level Sensor initialized successfully."));
 }
 void initializeWaterLevelSensor (void) {
     pinMode(WATER_SENSOR_TRIG_PIN, OUTPUT);
@@ -2123,7 +2128,20 @@ void printHeap() {
 }
 
 void readRawFoodSensorDistance (void) {
-    // To be implemented later
+    digitalWrite(FOOD_SENSOR_TRIG_PIN, LOW);
+    delayMicroseconds(2);
+    digitalWrite(FOOD_SENSOR_TRIG_PIN, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(FOOD_SENSOR_TRIG_PIN, LOW);
+
+    long duration = pulseIn(FOOD_SENSOR_ECHO_PIN, HIGH, 30000); // 30ms timeout
+    
+    if (duration == 0) {
+        Serial.println(F("[Food Sensor] No response - Check wiring and power"));
+        return;
+    }
+    
+    rawFoodSensorDistance = duration * 0.034 / 2; // Convert to cm
 }
 
 void readRawWaterSensorDistance (void) {

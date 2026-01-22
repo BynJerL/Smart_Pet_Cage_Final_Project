@@ -33,6 +33,10 @@
 #define MOTION_SENSOR_PIN 5
 #define RGB_LED       48
 
+#define WIFI_CONNECT_IND    P3
+#define SD_CARD_IND         P4
+#define DOG_BARK_IND        P5
+
 #define WATER_SENSOR_ECHO_PIN 17
 #define WATER_SENSOR_TRIG_PIN 18
 

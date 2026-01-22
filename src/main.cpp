@@ -279,7 +279,14 @@ void syncSensorThreshold (void);
 void processCommand (void);
 void cleanOngoingCommand (void);
 void loadDefaultSchedule (void);
-void sendLogToFirebase (void);
+bool sendLogToFirebase (
+    const String& category,
+    const String& event,
+    const String& target,
+    int value,
+    const String& source,
+    const String& reason
+);
 
 void readEEPROM();
 void writeEEPROM(const char* newSsid, const char* newPass);
@@ -2201,7 +2208,7 @@ void checkWaterLevel (void) {
         waterLevelPercent = 0;
         return;
     }
-    
+
     if (waterLevelPercent > 100) {
         waterLevelPercent = 100;
         return;
@@ -2226,4 +2233,54 @@ void showWaterLevelData (void) {
     Serial.print(F("Water Level: "));
     Serial.print(waterLevelPercent);
     Serial.println(F(" %"));
+}
+
+bool sendLogToFirebase (
+    const String& category,
+    const String& event,
+    const String& target,
+    int value,
+    const String& source,
+    const String& reason
+) {
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println(F("[LOG] WiFi not connected"));
+        return false;
+    }
+
+    DateTime now = rtc.now();
+
+    String url = withAuth(String(FIREBASE_URL) + "/event_log.json");
+
+    http.begin(fbClient, url);
+    http.addHeader("Content-Type", "application/json");
+
+    String payload = "{";
+    payload += "\"timestamp\":" + String(now.unixtime()) + ",";
+    payload += "\"datetime\":\"" + String(now.year()) + "-" +
+               String(now.month()) + "-" +
+               String(now.day()) + " " +
+               String(now.hour()) + ":" +
+               String(now.minute()) + ":" +
+               String(now.second()) + "\",";
+    payload += "\"source\":\"" + source + "\",";
+    payload += "\"category\":\"" + category + "\",";
+    payload += "\"event\":\"" + event + "\",";
+    payload += "\"target\":\"" + target + "\",";
+    payload += "\"value\":" + String(value) + ",";
+    payload += "\"reason\":\"" + reason + "\"";
+    payload += "}";
+
+    int code = http.POST(payload);
+
+    if (code > 0) {
+        Serial.print(F("[LOG] Sent OK, code: "));
+        Serial.println(code);
+    } else {
+        Serial.print(F("[LOG] Failed: "));
+        Serial.println(http.errorToString(code));
+    }
+
+    http.end();
+    return (code > 0);
 }

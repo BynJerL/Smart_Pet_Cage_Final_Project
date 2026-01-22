@@ -16,6 +16,7 @@
 #include <Adafruit_BMP280.h>
 #include <LiquidCrystal_I2C.h>
 #include <Adafruit_NeoPixel.h>
+#include <ESP32Servo.h>
 #include "esp_heap_caps.h"
 
 #define L_BUTTON      P0
@@ -101,6 +102,7 @@ Adafruit_AHTX0 aht;
 Adafruit_BMP280 bmp;
 LiquidCrystal_I2C lcd(0x27, LCD_COL, LCD_ROW);
 Adafruit_NeoPixel rgb(NUM_PIXELS, RGB_LED, NEO_GRB + NEO_KHZ800);
+Servo feeder;
 
 enum ScheduleType : uint8_t {
   SCHED_FEEDER,

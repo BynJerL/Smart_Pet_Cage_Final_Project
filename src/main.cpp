@@ -98,6 +98,9 @@
 
 #define NUM_PIXELS 1
 
+#define SLIDESHOW_SCREEN_DURATION_MS  3000   // Auto-advance every 3 seconds
+#define SLIDESHOW_SCREEN_COUNT        6 
+
 PCF8574 pcf1(PCF8574_ADDRESS_1);
 PCF8574 pcf2(PCF8574_ADDRESS_2);
 RTC_DS3231 rtc;
@@ -116,6 +119,16 @@ Servo feeder;
 enum ScheduleType : uint8_t {
   SCHED_FEEDER,
   SCHED_WATER
+};
+
+enum SlideshowScreen : uint8_t {
+    SLIDE_TEMP_HUM = 0,
+    SLIDE_PRESSURE_ALT,
+    SLIDE_WATER_LEVEL,
+    SLIDE_FOOD_LEVEL,
+    SLIDE_MOTION_GATE,
+    SLIDE_SYSTEM_INFO,
+    SLIDE_COUNT
 };
 
 enum MenuID : uint8_t {
@@ -230,6 +243,11 @@ volatile int8_t currentMenu = 0;
 bool menuDirty = true;
 
 int8_t rgbMode = 0;
+
+/* LCD Slideshow State */
+uint8_t currentSlideshowScreen = SLIDE_TEMP_HUM;
+unsigned long lastSlideshowAdvance = 0;
+bool slideshowActive = false;
 
 void initializeButtons (void);
 void initializeRelays (void);
@@ -361,6 +379,20 @@ String getTimestamp();
 
 String withAuth(String url);
 
+void startSensorDataSlideshow(void);
+void updateSensorDataSlideshow(void);
+void nextSlideshowScreen(void);
+void previousSlideshowScreen(void);
+void displaySlideshowScreen(uint8_t screenID);
+void displaySlideTemperatureHumidity(void);
+void displaySlidePressureAltitude(void);
+void displaySlideWaterLevel(void);
+void displaySlideFoodLevel(void);
+void displaySlideMotionGate(void);
+void displaySlideSystemInfo(void);
+
+void processMenuSelection(void);
+
 void setup () {
     Serial.begin(115200);
     initializeButtons();
@@ -418,6 +450,7 @@ void loop () {
     readSensorsData();
     sendSensorDataPeriodically();
     fetchCommandFromFirebasePeriodically();
+    updateSensorDataSlideshow(); 
 
     if (isConfigMode) {
         server.handleClient();
@@ -636,7 +669,11 @@ void checkButtonStateChange (void) {
         if ((buttonState & _BV(L_BUTTON)) != (lastButtonState & _BV(L_BUTTON))) {
             if (!(buttonState & _BV(L_BUTTON))) {
                 Serial.println(F("L Button Pressed."));
-                handleMenuNavigation(-1);
+                if (slideshowActive) {
+                    previousSlideshowScreen();
+                } else {
+                    handleMenuNavigation(-1);
+                }
             } else {
                 Serial.println(F("L Button Released."));
             }
@@ -645,6 +682,7 @@ void checkButtonStateChange (void) {
         if ((buttonState & _BV(C_BUTTON)) != (lastButtonState & _BV(C_BUTTON))) {
             if (!(buttonState & _BV(C_BUTTON))) {
                 Serial.println(F("C Button Pressed."));
+                processMenuSelection();
             } else {
                 Serial.println(F("C Button Released."));
             }
@@ -653,7 +691,11 @@ void checkButtonStateChange (void) {
         if ((buttonState & _BV(R_BUTTON)) != (lastButtonState & _BV(R_BUTTON))) {
             if (!(buttonState & _BV(R_BUTTON))) {
                 Serial.println(F("R Button Pressed."));
-                handleMenuNavigation(+1);
+                if (slideshowActive) {
+                    nextSlideshowScreen();
+                } else {
+                    handleMenuNavigation(+1);
+                }
             } else {
                 Serial.println(F("R Button Released."));
             }
@@ -836,6 +878,16 @@ void checkSerialCommand (void) {
                 break;
             case '/':
                 processCommand();
+                break;
+            case 'd':  // 'd' for display/slideshow
+                if (slideshowActive) {
+                    slideshowActive = false;
+                    lcd.clear();
+                    Serial.println(F("Slideshow stopped"));
+                } else {
+                    startSensorDataSlideshow();
+                    Serial.println(F("Sensor slideshow started. Use < and > to navigate."));
+                }
                 break;
             // case 'd':
             //     IPAddress serverIP;
@@ -1501,6 +1553,7 @@ void printSerialCommandList (void) {
     Serial.println(F(". - Update RGB mode"));
     Serial.println(F("z - Test RGB"));
     Serial.println(F("/ - Force Fetch & Process Command"));
+    Serial.println(F("d - Start/Stop Sensor Data Slideshow on LCD"));
     Serial.println(F("i - Print this Command List"));
 }
 
@@ -2424,4 +2477,150 @@ String getTimestamp() {
              now.year(), now.month(), now.day(),
              now.hour(), now.minute(), now.second());
     return String(buf);
+}
+
+void startSensorDataSlideshow(void) {
+    slideshowActive = true;
+    currentSlideshowScreen = SLIDE_TEMP_HUM;
+    lastSlideshowAdvance = millis();
+    displaySlideshowScreen(currentSlideshowScreen);
+}
+
+void updateSensorDataSlideshow(void) {
+    if (!slideshowActive) return;
+    
+    unsigned long now = millis();
+    if (now - lastSlideshowAdvance >= SLIDESHOW_SCREEN_DURATION_MS) {
+        nextSlideshowScreen();
+        lastSlideshowAdvance = now;
+    }
+}
+
+void nextSlideshowScreen(void) {
+    currentSlideshowScreen = (currentSlideshowScreen + 1) % SLIDE_COUNT;
+    displaySlideshowScreen(currentSlideshowScreen);
+    Serial.print(F("[LCD] Advanced to screen: "));
+    Serial.println(currentSlideshowScreen);
+}
+
+void previousSlideshowScreen(void) {
+    if (currentSlideshowScreen == 0) {
+        currentSlideshowScreen = SLIDE_COUNT - 1;
+    } else {
+        currentSlideshowScreen--;
+    }
+    displaySlideshowScreen(currentSlideshowScreen);
+    Serial.print(F("[LCD] Went back to screen: "));
+    Serial.println(currentSlideshowScreen);
+}
+
+void displaySlideshowScreen(uint8_t screenID) {
+    lcd.clear();
+    
+    switch (screenID) {
+        case SLIDE_TEMP_HUM:
+            displaySlideTemperatureHumidity();
+            break;
+        case SLIDE_PRESSURE_ALT:
+            displaySlidePressureAltitude();
+            break;
+        case SLIDE_WATER_LEVEL:
+            displaySlideWaterLevel();
+            break;
+        case SLIDE_FOOD_LEVEL:
+            displaySlideFoodLevel();
+            break;
+        case SLIDE_MOTION_GATE:
+            displaySlideMotionGate();
+            break;
+        case SLIDE_SYSTEM_INFO:
+            displaySlideSystemInfo();
+            break;
+        default:
+            lcd.print(F("Unknown Screen"));
+            break;
+    }
+}
+
+void displaySlideTemperatureHumidity(void) {
+    lcd.setCursor(0, 0);
+    lcd.print(F("Temp: "));
+    lcd.print(ahtTemperature, 1);
+    lcd.print(F("C"));
+    
+    lcd.setCursor(0, 1);
+    lcd.print(F("Hum:  "));
+    lcd.print(ahtHumidity, 1);
+    lcd.print(F("%"));
+}
+
+void displaySlidePressureAltitude(void) {
+    lcd.setCursor(0, 0);
+    lcd.print(F("Press: "));
+    lcd.print(bmpPressure, 0);
+    lcd.print(F("hPa"));
+    
+    lcd.setCursor(0, 1);
+    lcd.print(F("Alt: "));
+    lcd.print(bmpAltitude, 0);
+    lcd.print(F("m"));
+}
+
+void displaySlideWaterLevel(void) {
+    lcd.setCursor(0, 0);
+    lcd.print(F("Water Level:"));
+    
+    lcd.setCursor(0, 1);
+    lcd.print(waterLevelPercent, 0);
+    lcd.print(F("%"));
+    
+    // Optional: Add a simple bar graph
+    uint8_t barLength = (waterLevelPercent / 100.0) * 10;
+    lcd.print(F(" ["));
+    for (uint8_t i = 0; i < 10; i++) {
+        lcd.print(i < barLength ? "#" : "-");
+    }
+    lcd.print(F("]"));
+}
+
+void displaySlideFoodLevel(void) {
+    lcd.setCursor(0, 0);
+    lcd.print(F("Food Level:"));
+    
+    lcd.setCursor(0, 1);
+    lcd.print(foodLevelPercent, 0);
+    lcd.print(F("%"));
+    
+    // Optional: Add a simple bar graph
+    uint8_t barLength = (foodLevelPercent / 100.0) * 10;
+    lcd.print(F(" ["));
+    for (uint8_t i = 0; i < 10; i++) {
+        lcd.print(i < barLength ? "#" : "-");
+    }
+    lcd.print(F("]"));
+}
+
+void displaySlideMotionGate(void) {
+    lcd.setCursor(0, 0);
+    lcd.print(F("Motion: "));
+    lcd.print(motionDetected ? F("YES") : F("NO"));
+    
+    lcd.setCursor(0, 1);
+    lcd.print(F("Gate:   "));
+    lcd.print(isGateSwitchClosed ? F("CLOSED") : F("OPEN"));
+}
+
+void displaySlideSystemInfo(void) {
+    lcd.setCursor(0, 0);
+    lcd.print(F("WiFi: "));
+    if (WiFi.status() == WL_CONNECTED) {
+        lcd.print(F("OK"));
+    } else {
+        lcd.print(F("OFF"));
+    }
+    
+    lcd.setCursor(0, 1);
+    lcd.print(F("Free: "));
+    lcd.print(ESP.getFreeHeap() / 1024);
+    lcd.print(F("KB"));
 }

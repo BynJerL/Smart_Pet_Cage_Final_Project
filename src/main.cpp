@@ -2040,24 +2040,54 @@ void executeCommand (const String& action, const String& target) {
     }
 
     if (action == "enable") {
-        if (target == "fan") enableFan();
-        if (target == "gate") enableGate();
-        if (target == "pump") startPump();
-        if (target == "feeder") startFeeder();
+        if (target == "fan") {
+            enableFan();
+            sendLogToFirebase("actuator", "fan_on", "fan", 1, "app", "command");
+        }
+        if (target == "gate") {
+            enableGate();
+            sendLogToFirebase("actuator", "gate_on", "gate", 1, "app", "command");
+        }
+        if (target == "pump") {
+            startPump();
+            sendLogToFirebase("actuator", "pump_on", "pump", 1, "app", "command");
+        }
+        if (target == "feeder") {
+            startFeeder();
+            sendLogToFirebase("actuator", "feeder_on", "feeder", 1, "app", "command");
+        }
         return;
     }
 
     if (action == "disable") {
-        if (target == "fan") disableFan();
-        if (target == "gate") disableGate();
-        if (target == "pump") stopPump();
-        if (target == "feeder") stopFeeder();
+        if (target == "fan") {
+            disableFan();
+            sendLogToFirebase("actuator", "fan_off", "fan", 0, "app", "command");
+        }
+        if (target == "gate") {
+            disableGate();
+            sendLogToFirebase("actuator", "gate_off", "gate", 0, "app", "command");
+        }
+        if (target == "pump") {
+            stopPump();
+            sendLogToFirebase("actuator", "pump_off", "pump", 0, "app", "command");
+        }
+        if (target == "feeder") {
+            stopFeeder();
+            sendLogToFirebase("actuator", "feeder_off", "feeder", 0, "app", "command");
+        }
         return;
     }
 
     if (action == "toggle") {
-        if (target == "fan") toggleFan();
-        if (target == "gate") toggleGate();
+        if (target == "fan") {
+            toggleFan();
+            sendLogToFirebase("actuator", "fan_toggle", "fan", actuatorState & _BV(FAN_RELAY) ? 0 : 1, "app", "command");
+        }
+        if (target == "gate") {
+            toggleGate();
+            sendLogToFirebase("actuator", "gate_toggle", "gate", actuatorState & _BV(GATE_RELAY) ? 0 : 1, "app", "command");
+        }
         return;
     }
 

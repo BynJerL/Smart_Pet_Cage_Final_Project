@@ -1561,9 +1561,11 @@ void checkAlerts (void) {
                 Serial.print(ahtTemperature);
                 Serial.println(F(" °C"));
                 tempHighAlertActive = true;
+                sendLogToFirebase("alert", "temperature_high", "temperature", (int)ahtTemperature, "device", "threshold_exceeded");
             }
         } else {
             tempHighAlertActive = false;
+            sendLogToFirebase("alert", "temperature_normal", "temperature", (int)ahtTemperature, "device", "recovered");
         }
 
         if (ahtTemperature <= tempLowThreshold) {
@@ -1573,9 +1575,11 @@ void checkAlerts (void) {
                 Serial.print(ahtTemperature);
                 Serial.println(F(" °C"));
                 tempLowAlertActive = true;
+                sendLogToFirebase("alert", "temperature_low", "temperature", (int)ahtTemperature, "device", "threshold_exceeded");
             }
         } else {
             tempLowAlertActive = false;
+            sendLogToFirebase("alert", "temperature_normal", "temperature", (int)ahtTemperature, "device", "recovered");
         } 
         
         /* Humidity */ 
@@ -1586,9 +1590,11 @@ void checkAlerts (void) {
                 Serial.print(ahtHumidity);
                 Serial.println(F(" %"));
                 humHighAlertActive = true;
+                sendLogToFirebase("alert", "humidity_high", "humidity", (int)ahtHumidity, "device", "recovered");
             }
         } else {
             humHighAlertActive = false;
+            sendLogToFirebase("alert", "humidity_normal", "humidity", (int)ahtHumidity, "device", "recovered");
         }
 
         if (ahtHumidity <= humLowThreshold) {
@@ -1598,9 +1604,11 @@ void checkAlerts (void) {
                 Serial.print(ahtHumidity);
                 Serial.println(F(" %"));
                 humLowAlertActive = true;
+                sendLogToFirebase("alert", "humidity_low", "humidity", (int)ahtHumidity, "device", "recovered");
             }
         } else {
             humLowAlertActive = false;
+            sendLogToFirebase("alert", "humidity_normal", "humidity", (int)ahtHumidity, "device", "recovered");
         }
     }
 

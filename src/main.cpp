@@ -392,6 +392,7 @@ void displaySlideMotionGate(void);
 void displaySlideSystemInfo(void);
 
 void processMenuSelection(void);
+void displayConfigMenu(void);
 
 void setup () {
     Serial.begin(115200);
@@ -2628,3 +2629,11 @@ void displaySlideSystemInfo(void) {
 }
 
 void processMenuSelection(void) {}
+
+void displayConfigMenu(void) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print(F("Config Menu IP:"));
+    lcd.setCursor(0, 1);
+    lcd.print(WiFi.softAPIP());
+}

@@ -324,6 +324,7 @@ void readSensorsData (void);
 void showSavedAHTdata (void);
 void showSavedBMPdata (void);
 void showMotionSensorData (void);
+void showMicData (void);
 void showSensorsData (void);
 void displaySensorsDataOnLCD (void);
 void updateRGBMode (void);
@@ -1515,7 +1516,10 @@ void readSensorsData (void) {
     readBMPdata();
     readMotionSensorData();
     readRawWaterSensorDistance();
+    readRawFoodSensorDistance();
+    readMicData();
     checkWaterLevel();
+    checkFoodLevel();
 
     checkAlerts();
 }
@@ -1550,6 +1554,8 @@ void showSensorsData (void) {
     showSavedBMPdata();
     showMotionSensorData();
     showWaterLevelData();
+    showFoodLevelData();
+    showMicData();
 }
 
 void checkAlerts (void) {
@@ -2263,6 +2269,11 @@ void showWaterLevelData (void) {
     Serial.print(F("Water Level: "));
     Serial.print(waterLevelPercent);
     Serial.println(F(" %"));
+}
+
+void showMicData (void) {
+    Serial.print(F("Microphone Analog Value: "));
+    Serial.println(micAnalogValue);
 }
 
 bool sendLogToFirebase (

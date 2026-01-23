@@ -709,18 +709,22 @@ void checkSerialCommand (void) {
             case '1': 
                 toggleGate();
                 Serial.println(F("Gate Relay Toggled."));
+                sendLogToFirebase("actuator", "gate_toggle", "gate", actuatorState & _BV(GATE_RELAY) ? 0 : 1, "device", "manual_serial");
                 break;
             case '2':
                 startPump();
                 Serial.println(F("Pump Relay Activated."));
+                sendLogToFirebase("actuator", "pump_on", "pump", actuatorState & _BV(PUMP_RELAY) ? 0 : 1, "device", "manual_serial");
                 break;
             case '3':
                 toggleFan();
                 Serial.println(F("Fan Relay Toggled."));
+                sendLogToFirebase("actuator", "fan_toggle", "fan", actuatorState & _BV(FAN_RELAY) ? 0 : 1, "device", "manual_serial");
                 break;
             case '4':
                 startFeeder();
                 Serial.println(F("Feeder Activated."));
+                sendLogToFirebase("actuator", "feeder_on", "feeder", isFeederRunning, "device", "manual_serial");
                 break;
             case 't':
                 printCurrentTime();

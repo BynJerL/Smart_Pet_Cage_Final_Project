@@ -33,6 +33,7 @@
 #define FEEDER_PIN    4
 #define MOTION_SENSOR_PIN 5
 #define RGB_LED       48
+#define LIMIT_SWITCH  15
 
 #define WIFI_CONNECT_IND    P3
 #define SD_CARD_IND         P4
@@ -179,6 +180,7 @@ byte actuatorState = 0b00000111; // Only use 3 bit for now
 byte lastActuatorState = 0b00000111; // Only use 3 bit for now
 
 bool isFeederRunning = false;
+bool isGateSwitchClosed = false;
 
 char ssid[32];
 char pass[64];
@@ -241,6 +243,7 @@ void initializeWiFi (void);
 void initializeNTP (void);
 void initializeRGB (void);
 void initializeMic (void);
+void initializeGateLimitSwitch (void);
 
 void readRawButtonInput (void);
 void updateButtonInput (void);
@@ -320,11 +323,13 @@ void readAHTdata (void);
 void readBMPdata (void);
 void readMotionSensorData (void);
 void readMicData (void);
+void readLimitSwitchData (void);
 void readSensorsData (void);
 void showSavedAHTdata (void);
 void showSavedBMPdata (void);
 void showMotionSensorData (void);
 void showMicData (void);
+void showGateSwitchData (void);
 void showSensorsData (void);
 void displaySensorsDataOnLCD (void);
 void updateRGBMode (void);
@@ -548,6 +553,7 @@ void initializeSensors (void) {
     initializeMotionSensor();
     initializeFoodLevelSensor();
     initializeWaterLevelSensor();
+    initializeGateLimitSwitch();
 }
 void initializeDisplay (void) {
     lcd.init();
@@ -580,6 +586,10 @@ void initializeWaterLevelSensor (void) {
     pinMode(WATER_SENSOR_TRIG_PIN, OUTPUT);
     pinMode(WATER_SENSOR_ECHO_PIN, INPUT);
     Serial.println(F("Water Level Sensor initialized successfully."));
+}
+void initializeGateLimitSwitch (void) {
+    pinMode(LIMIT_SWITCH, INPUT);
+    Serial.println("Limit Switch initialized successfully.");
 }
 
 void readRawButtonInput (void) {
@@ -1513,6 +1523,10 @@ void readMicData (void) {
     micAnalogValue = analogRead(MICROPHONE_PIN);
 }
 
+void readLimitSwitchData (void) {
+    isGateSwitchClosed = digitalRead(LIMIT_SWITCH);
+}
+
 void readSensorsData (void) {
     if (millis() - lastSensorReadTime < SENSOR_READ_INTERVAL_MS) return;
     lastSensorReadTime = millis();
@@ -1522,6 +1536,7 @@ void readSensorsData (void) {
     readRawWaterSensorDistance();
     readRawFoodSensorDistance();
     readMicData();
+    readLimitSwitchData();
     checkWaterLevel();
     checkFoodLevel();
 
@@ -1560,6 +1575,7 @@ void showSensorsData (void) {
     showWaterLevelData();
     showFoodLevelData();
     showMicData();
+    showGateSwitchData();
 }
 
 void checkAlerts (void) {
@@ -2278,6 +2294,11 @@ void showWaterLevelData (void) {
 void showMicData (void) {
     Serial.print(F("Microphone Analog Value: "));
     Serial.println(micAnalogValue);
+}
+
+void showGateSwitchData (void) {
+    Serial.print(F("Gate Switch Status: "));
+    Serial.println(isGateSwitchClosed ? "CLOSED" : "OPEN");
 }
 
 bool sendLogToFirebase (

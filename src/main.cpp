@@ -454,12 +454,9 @@ void initializeRelays (void) {
     Serial.println(F("relays\' PCF8574 initialized successfully."));
 }
 void initializeFeeder (void) {
-    ESP32PWM::allocateTimer(0);
-	ESP32PWM::allocateTimer(1);
-	ESP32PWM::allocateTimer(2);
-	ESP32PWM::allocateTimer(3);
     feeder.setPeriodHertz(50);
-    feeder.attach(FEEDER_PIN, 500, 2400);
+    feeder.attach(FEEDER_PIN);
+    feeder.write(0); // Initial position
     Serial.println(F("feeder initialized successfully."));
 }
 void initializeRTC (void) {

@@ -2628,7 +2628,27 @@ void displaySlideSystemInfo(void) {
     lcd.print(F("KB"));
 }
 
-void processMenuSelection(void) {}
+void processMenuSelection(void) {
+    if (slideshowActive) {
+        slideshowActive = false;
+        menuDirty = true;
+        updateDisplayUI();
+        return;
+    }
+
+    switch (currentMenu) {
+        case MENU_SHOW_DATA:
+            startSensorDataSlideshow();
+            Serial.println(F("Sensor slideshow started. Use < and > to navigate."));
+            break;
+        case MENU_CHECK_SCHEDULE:
+            break;
+        case MENU_MANUAL_SCHEDULE:
+            break;
+        default:
+            break;
+    }
+}
 
 void displayConfigMenu(void) {
     lcd.clear();

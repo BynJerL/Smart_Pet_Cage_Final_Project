@@ -1720,6 +1720,8 @@ void handleMenuNavigation (int direction) {
 }
 
 void renderMenuUI (void) {
+    if (slideshowActive) return;
+
     lcd.clear();
 
     lcd.setCursor(0, 0);
@@ -2624,3 +2626,5 @@ void displaySlideSystemInfo(void) {
     lcd.print(ESP.getFreeHeap() / 1024);
     lcd.print(F("KB"));
 }
+
+void processMenuSelection(void) {}

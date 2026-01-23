@@ -1560,7 +1560,7 @@ void checkAlerts (void) {
                 tempHighAlertActive = true;
                 sendLogToFirebase("alert", "temperature_high", "temperature", (int)ahtTemperature, "device", "threshold_exceeded");
             }
-        } else {
+        } else if (tempHighAlertActive) {
             tempHighAlertActive = false;
             sendLogToFirebase("alert", "temperature_normal", "temperature", (int)ahtTemperature, "device", "recovered");
         }
@@ -1574,7 +1574,7 @@ void checkAlerts (void) {
                 tempLowAlertActive = true;
                 sendLogToFirebase("alert", "temperature_low", "temperature", (int)ahtTemperature, "device", "threshold_exceeded");
             }
-        } else {
+        } else if (tempLowAlertActive) {
             tempLowAlertActive = false;
             sendLogToFirebase("alert", "temperature_normal", "temperature", (int)ahtTemperature, "device", "recovered");
         } 
@@ -1589,7 +1589,7 @@ void checkAlerts (void) {
                 humHighAlertActive = true;
                 sendLogToFirebase("alert", "humidity_high", "humidity", (int)ahtHumidity, "device", "recovered");
             }
-        } else {
+        } else if (humHighAlertActive) {
             humHighAlertActive = false;
             sendLogToFirebase("alert", "humidity_normal", "humidity", (int)ahtHumidity, "device", "recovered");
         }
@@ -1603,7 +1603,7 @@ void checkAlerts (void) {
                 humLowAlertActive = true;
                 sendLogToFirebase("alert", "humidity_low", "humidity", (int)ahtHumidity, "device", "recovered");
             }
-        } else {
+        } else if (humLowAlertActive) {
             humLowAlertActive = false;
             sendLogToFirebase("alert", "humidity_normal", "humidity", (int)ahtHumidity, "device", "recovered");
         }

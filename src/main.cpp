@@ -395,7 +395,6 @@ void setup () {
 
     initializeNTP();
     checkAndSyncRTCOnBoot();
-    loadScheduleFromSDCard();
     syncSchedule();
     syncSensorThreshold();
 
@@ -652,6 +651,7 @@ void checkButtonStateChange (void) {
             if (!(buttonState & _BV(GATE_BUTTON))) {
                 Serial.println(F("Gate Button Pressed."));
                 toggleGate();
+                sendLogToFirebase("actuator", "gate_toggle", "gate", actuatorState & _BV(GATE_RELAY) ? 0 : 1, "device", "manual_button");
             } else {
                 Serial.println(F("Gate Button Released."));
             }
@@ -661,6 +661,8 @@ void checkButtonStateChange (void) {
             if (!(buttonState & _BV(PUMP_BUTTON))) {
                 Serial.println(F("Pump Button Pressed."));
                 startPump();
+                bool pumpState = actuatorState & _BV(PUMP_RELAY) ? 0 : 1;
+                sendLogToFirebase("actuator", "pump_on", "pump", pumpState, "device", "manual_button");
             } else {
                 Serial.println(F("Pump Button Released."));
             }
@@ -670,6 +672,7 @@ void checkButtonStateChange (void) {
             if (!(buttonState & _BV(FAN_BUTTON))) {
                 Serial.println(F("Fan Button Pressed."));
                 toggleFan();
+                sendLogToFirebase("actuator", "fan_toggle", "fan", actuatorState & _BV(FAN_RELAY) ? 0 : 1, "device", "manual_button");
             } else {
                 Serial.println(F("Fan Button Released."));
             }
@@ -679,6 +682,7 @@ void checkButtonStateChange (void) {
             if (!(buttonState & _BV(FEEDER_BUTTON))) {
                 Serial.println(F("Feeder Button Pressed."));
                 startFeeder();
+                sendLogToFirebase("actuator", "feeder_on", "feeder", isFeederRunning, "device", "manual_button");
             } else {
                 Serial.println(F("Feeder Button Released."));
             }

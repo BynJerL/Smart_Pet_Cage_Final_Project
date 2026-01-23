@@ -44,6 +44,8 @@
 #define WATER_SENSOR_ECHO_PIN 17
 #define WATER_SENSOR_TRIG_PIN 18
 
+#define MICROPHONE_PIN  6
+
 #define SD_CS   10
 #define SD_MOSI 11
 #define SD_MISO 13
@@ -187,6 +189,7 @@ float ahtHumidity = 0.0;
 float bmpPressure = 0.0;
 float bmpAltitude = 0.0; 
 bool motionDetected = false;
+int16_t micAnalogValue = 0;
 float foodLevelPercent = 0.0;
 float waterLevelPercent = 0.0;
 float rawFoodSensorDistance = 0.0;
@@ -237,6 +240,7 @@ void initializeSDCardReader (void);
 void initializeWiFi (void);
 void initializeNTP (void);
 void initializeRGB (void);
+void initializeMic (void);
 
 void readRawButtonInput (void);
 void updateButtonInput (void);
@@ -315,6 +319,7 @@ void disableFan (void);
 void readAHTdata (void);
 void readBMPdata (void);
 void readMotionSensorData (void);
+void readMicData (void);
 void readSensorsData (void);
 void showSavedAHTdata (void);
 void showSavedBMPdata (void);
@@ -354,6 +359,7 @@ void setup () {
     initializeRelays();
     initializeFeeder();
     initializeSensors();
+    initializeMic();
     initializeDisplay();
     initializeRGB();
     initializeRTC();
@@ -563,6 +569,10 @@ void initializeRGB (void) {
     rgbInitialized = true;
 
     Serial.println(F("RGB LED initialized successfully."));
+}
+void initializeMic (void) {
+    // Analog pin setup if needed
+    Serial.println(F("Microphone initialized successfully."));
 }
 void initializeFoodLevelSensor (void) {
     pinMode(FOOD_SENSOR_TRIG_PIN, OUTPUT);
@@ -1491,6 +1501,10 @@ void readBMPdata (void) {
 
 void readMotionSensorData (void) {
     motionDetected = digitalRead(MOTION_SENSOR_PIN);
+}
+
+void readMicData (void) {
+    micAnalogValue = analogRead(MICROPHONE_PIN);
 }
 
 void readSensorsData (void) {

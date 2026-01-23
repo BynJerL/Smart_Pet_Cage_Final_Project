@@ -1038,8 +1038,10 @@ void checkScheduleExecution(void) {
 
             if (schedules[i].type == SCHED_FEEDER) {
                 startFeeder();
+                sendLogToFirebase("actuator", "feeder_on", "feeder", 1, "device", "schedule");
             } else if (schedules[i].type == SCHED_WATER) {
                 startPump();
+                sendLogToFirebase("actuator", "pump_on", "pump", 1, "device", "schedule");
             }
 
             schedules[i].executed = true;

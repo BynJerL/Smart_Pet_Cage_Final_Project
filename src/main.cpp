@@ -38,6 +38,8 @@
 #define WIFI_CONNECT_IND    P3
 #define SD_CARD_IND         P4
 #define DOG_BARK_IND        P5
+#define FIREBASE_RX_IND     P6
+#define FIREBASE_TX_IND     P7
 
 #define FOOD_SENSOR_ECHO_PIN 47
 #define FOOD_SENSOR_TRIG_PIN 21

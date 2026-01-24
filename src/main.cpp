@@ -18,6 +18,8 @@
 #include <Adafruit_NeoPixel.h>
 #include <ESP32Servo.h>
 #include "esp_heap_caps.h"
+#include "Dog_Sound_Detector_inferencing.h"
+#include "esp_task_wdt.h"
 
 #define L_BUTTON      P0
 #define C_BUTTON      P1
@@ -100,6 +102,14 @@
 
 #define SLIDESHOW_SCREEN_DURATION_MS  3000   // Auto-advance every 3 seconds
 #define SLIDESHOW_SCREEN_COUNT        6 
+
+#define MIC_TASK_STACK    32768  // bytes (adjust if needed)
+#define MIC_TASK_PRIO     1
+#define MIC_TASK_CORE     0
+
+#define SAMPLE_RATE       20000          // 20 kHz
+#define SAMPLE_LENGTH     EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE
+static_assert(SAMPLE_LENGTH == 20000, "SAMPLE_LENGTH expected 20000");
 
 PCF8574 pcf1(PCF8574_ADDRESS_1);
 PCF8574 pcf2(PCF8574_ADDRESS_2);
@@ -252,6 +262,9 @@ bool tempLowAlertActive = false;
 bool humHighAlertActive = false;
 bool humLowAlertActive = false;
 bool motionAlertActive = false;
+bool foodLowAlertActive = false;
+bool waterLowAlertActive = false;
+bool barkAlertActive = false;
 
 const char* menuNames[MENU_COUNT] = {
     "Show Data",
@@ -281,6 +294,29 @@ uint8_t alertThresholdViewMode = ALERT_VIEW_MAIN_MENU;
 uint8_t selectedAlertIndex = 0;  // For cycling through thresholds
 unsigned long lastAlertViewUpdate = 0;
 bool alertViewDirty = true;
+
+// ---- shared status (protected with spinlock) ----
+volatile bool mic_ready = false;
+float mic_level_rms = 0.0f;    // normalized RMS [0..1]
+uint8_t mic_level = 0;         // scaled 0..100 for human/UI
+float bark_confidence = 0.0f;  // classifier probability for 'bark' class
+bool  bark_detected = false;   // derived boolean (thresholded)
+
+portMUX_TYPE micMux = portMUX_INITIALIZER_UNLOCKED; // protect writes/reads
+
+// ---- runtime calibration (for MAX9814 gain floating) ----
+static float ambient_rms_ema = 0.0f;   // exponential moving average of 'quiet' RMS
+const float AMBIENT_ALPHA = 0.01f;     // smoothing factor (lower -> slower)
+
+// choose thresholds for dB->level mapping (tune later)
+const float MIN_REL_DB = -50.0f; // corresponds to very quiet relative to ambient
+const float MAX_REL_DB = 20.0f;  // loudest you expect (above ambient)
+
+const float BARK_CONF_THRESHOLD = 0.65f; // bark detection threshold
+
+// ---- audio buffer ----
+static int16_t audio_buffer[SAMPLE_LENGTH]; // 20000 int16_t
+static float *ei_input_global = nullptr;
 
 void initializeButtons (void);
 void initializeRelays (void);
@@ -454,6 +490,20 @@ void selectAlertItem(void);
 void processMenuSelection(void);
 void displayConfigMenu(void);
 
+void startMicTask();
+void micTask(void* pvParameters);
+float computeRMSFromBuffer(const int16_t *buf, size_t len);
+void normalizeToFloatBuffer(const int16_t *in, size_t len, float *out);
+int ei_get_data(size_t offset, size_t length, float *out_ptr);
+void appendMicInferenceToJSON(String &json);
+float mic_get_rms();
+uint8_t mic_get_level();
+float mic_get_bark_confidence();
+bool mic_is_bark_detected();
+void readMicValuesExample();
+void displayMicrophoneNoisePage();
+void displayBarkPage();
+
 void setup () {
     Serial.begin(115200);
     initializeButtons();
@@ -465,6 +515,8 @@ void setup () {
     initializeRGB();
     initializeRTC();
     initializeSDCardReader();
+
+    startMicTask();
 
     /* WiFi Setup */ 
     WiFi.mode(WIFI_STA);
@@ -542,6 +594,12 @@ void initializeRelays (void) {
     pcf2.pinMode(PUMP_RELAY, OUTPUT);
     pcf2.pinMode(FAN_RELAY, OUTPUT);
 
+    pcf2.pinMode(WIFI_CONNECT_IND, OUTPUT);
+    pcf2.pinMode(SD_CARD_IND, OUTPUT);
+    pcf2.pinMode(DOG_BARK_IND, OUTPUT);
+    pcf2.pinMode(FIREBASE_RX_IND, OUTPUT);
+    pcf2.pinMode(FIREBASE_TX_IND, OUTPUT);
+
     if (!pcf2.begin()) {
         Serial.println(F("ERROR: Could not initialize relays\' PCF8574! Check wiring, I2C address, SDA/SCL connections and power."));
         while (1) delay(100);
@@ -551,6 +609,12 @@ void initializeRelays (void) {
     pcf2.digitalWrite(GATE_RELAY, HIGH);
     pcf2.digitalWrite(PUMP_RELAY, HIGH);
     pcf2.digitalWrite(FAN_RELAY, HIGH);
+
+    pcf2.digitalWrite(WIFI_CONNECT_IND, HIGH);
+    pcf2.digitalWrite(SD_CARD_IND, HIGH);
+    pcf2.digitalWrite(DOG_BARK_IND, HIGH);
+    pcf2.digitalWrite(FIREBASE_RX_IND, HIGH);
+    pcf2.digitalWrite(FIREBASE_TX_IND, HIGH);
 
     Serial.println(F("relays\' PCF8574 initialized successfully."));
 }
@@ -3331,4 +3395,301 @@ void selectAlertItem(void) {
         default:
             break;
     }
+}
+
+void startMicTask() {
+  // configure ADC (Arduino wrappers), resolution & attenuation
+  analogReadResolution(12);        // 12-bit ADC (0..4095)
+  analogSetPinAttenuation(MICROPHONE_PIN, ADC_11db); // allow larger input swings
+
+  // create the FreeRTOS task pinned to MIC_TASK_CORE
+  xTaskCreatePinnedToCore(
+    micTask,
+    "MicTask",
+    MIC_TASK_STACK / sizeof(StackType_t),
+    nullptr,
+    MIC_TASK_PRIO,
+    nullptr,
+    MIC_TASK_CORE
+  );
+  
+  Serial.print(F("[MicTask] Started on core ")); Serial.println(MIC_TASK_CORE);
+}
+
+// compute RMS of signed samples (centered on zero)
+float computeRMSFromBuffer(const int16_t *buf, size_t len) {
+  // Convert each raw ADC sample to signed centered value.
+  // For 12-bit ADC (0..4095) center = 2048.
+  double sumsq = 0.0;
+  const double center = 2048.0;
+
+  for (size_t i = 0; i < len; ++i) {
+    double s = ((double)buf[i] - center);
+    sumsq += s * s;
+  }
+  double meanSq = sumsq / (double)len;
+  double rms = sqrt(meanSq);
+
+  // Normalize to 0..1 by dividing by center
+  float normalized = (float)(rms / center);
+  if (normalized < 0.0f) normalized = 0.0f;
+  return normalized;
+}
+
+// Helper: create float normalized buffer expected by EI (range -1..1)
+void normalizeToFloatBuffer(const int16_t *in, size_t len, float *out) {
+  const float center = 2048.0f;
+  for (size_t i = 0; i < len; ++i) {
+    out[i] = ((float)in[i] - center) / center; // maps to approx [-1, 1]
+  }
+}
+
+void micTask(void* pvParameters) {
+  // allocate temporary float buffer for EI
+  float *ei_input = (float*)heap_caps_malloc(SAMPLE_LENGTH * sizeof(float), MALLOC_CAP_8BIT);
+  if (!ei_input) {
+    Serial.println(F("[MicTask] Failed to allocate EI buffer!"));
+    vTaskDelete(NULL);
+    return;
+  }
+  ei_input_global = ei_input; 
+
+  // register this task with the task watchdog
+  esp_err_t wres = esp_task_wdt_add(NULL);
+  if (wres != ESP_OK) {
+    Serial.println(F("[MicTask] WARNING: esp_task_wdt_add failed"));
+  } else {
+    Serial.println(F("[MicTask] Registered with TWDT"));
+  }
+
+  // small safety delay so rest of system finishes setup
+  vTaskDelay(pdMS_TO_TICKS(1000));
+
+  const unsigned microDelay = (unsigned)(1000000UL / SAMPLE_RATE); // 50 us @ 20kHz
+  const int WDT_FEED_INTERVAL_SAMPLES = 1000; // reset WDT every 1000 samples
+  const int CHUNK_SIZE = 2000;               // samples per chunk (0.1s)
+  const int NUM_CHUNKS = SAMPLE_LENGTH / CHUNK_SIZE; // should be 10 for 20000/2000
+
+  // sanity check
+  if (SAMPLE_LENGTH % CHUNK_SIZE != 0) {
+    Serial.println(F("[MicTask] WARNING: SAMPLE_LENGTH not divisible by CHUNK_SIZE"));
+  }
+
+  for (;;) {
+    int globalIndex = 0;
+    int wdtCounter = 0;
+
+    // Capture SAMPLE_LENGTH samples in CHUNK_SIZE blocks
+    for (int chunk = 0; chunk < NUM_CHUNKS; ++chunk) {
+      // capture one chunk
+      for (int i = 0; i < CHUNK_SIZE; ++i) {
+        int32_t v = analogRead(MICROPHONE_PIN); // [0..4095]
+        audio_buffer[globalIndex++] = (int16_t)v;
+
+        // precise small delay between samples
+        ets_delay_us(microDelay);
+
+        // feed TWDT regularly
+        if (++wdtCounter >= WDT_FEED_INTERVAL_SAMPLES) {
+          esp_task_wdt_reset();
+          wdtCounter = 0;
+        }
+      }
+
+      // Allow system idle and other tasks to run
+      vTaskDelay(1);
+
+      // Reset WDT again after the short delay
+      esp_task_wdt_reset();
+    } // end capture all chunks
+
+    // --- Now we have the full SAMPLE_LENGTH buffer filled ---
+    // Compute RMS
+    float rms = computeRMSFromBuffer(audio_buffer, SAMPLE_LENGTH);
+
+    // Update ambient baseline (EMA)
+    ambient_rms_ema = (1.0f - AMBIENT_ALPHA) * ambient_rms_ema + AMBIENT_ALPHA * rms;
+    float baseline = ambient_rms_ema;
+    if (baseline < 1e-6f) baseline = 1e-6f;
+
+    // Compute rel dB and scaled level
+    float rel_ratio = rms / baseline;
+    float rel_db = 20.0f * log10f(rel_ratio + 1e-12f);
+    float clamped = (rel_db - MIN_REL_DB) / (MAX_REL_DB - MIN_REL_DB);
+    if (clamped < 0.0f) clamped = 0.0f;
+    if (clamped > 1.0f) clamped = 1.0f;
+    uint8_t scaledLevel = (uint8_t)roundf(clamped * 100.0f);
+
+    // Prepare EI input
+    normalizeToFloatBuffer(audio_buffer, SAMPLE_LENGTH, ei_input);
+
+    // reset WDT before heavy inference
+    esp_task_wdt_reset();
+
+    // Run classifier
+    ei_signal_t signal;
+    signal.total_length = SAMPLE_LENGTH;
+    signal.get_data = &ei_get_data;
+
+    ei_impulse_result_t result;
+    unsigned long t0 = millis();
+    EI_IMPULSE_ERROR r = run_classifier(&signal, &result, false);
+    unsigned long dt = millis() - t0;
+    Serial.printf("[MicTask] inference dt=%lums\n", dt);
+
+    float barkProb = 0.0f;
+    if (r == EI_IMPULSE_OK) {
+      barkProb = result.classification[0].value;
+    } else {
+      Serial.println(F("[MicTask] EI run_classifier error!"));
+    }
+    bool detected = (barkProb >= BARK_CONF_THRESHOLD);
+
+    // Publish atomically
+    portENTER_CRITICAL(&micMux);
+      mic_level_rms = rms;
+      mic_level = scaledLevel;
+      bark_confidence = barkProb;
+      bark_detected = detected;
+      mic_ready = true;
+    portEXIT_CRITICAL(&micMux);
+
+    // Optional: light up RGB LED if bark detected
+    if (detected) {
+      pcf2.digitalWrite(DOG_BARK_IND, LOW);
+    } else {
+      pcf2.digitalWrite(DOG_BARK_IND, HIGH);
+    }
+
+    // Final WDT reset and give scheduler a chance
+    esp_task_wdt_reset();
+    vTaskDelay(1); // allow other tasks and IDLE to run again
+  } // end for(;;)
+
+  // cleanup (unreachable)
+  esp_task_wdt_delete(NULL);
+  free(ei_input);
+  vTaskDelete(NULL);
+}
+
+int ei_get_data(size_t offset, size_t length, float *out_ptr) {
+    for (size_t i = 0; i < length; i++) {
+        out_ptr[i] = ei_input_global[offset + i];
+    }
+    return 0;
+}
+
+void appendMicInferenceToJSON(String &json) {
+  float rms;
+  uint8_t lvl;
+  float conf;
+  bool bark;
+
+  portENTER_CRITICAL(&micMux);
+    rms = mic_level_rms;
+    lvl = mic_level;
+    conf = bark_confidence;
+    bark = bark_detected;
+  portEXIT_CRITICAL(&micMux);
+
+  json += "\"mic_rms\":" + String(rms, 4) + ",";
+  json += "\"mic_level\":" + String(lvl) + ",";
+  json += "\"bark_confidence\":" + String(conf, 3) + ",";
+  json += "\"bark_detected\":" + String(bark ? "true" : "false") + ",";
+}
+
+float mic_get_rms() {
+    float rms;
+    portENTER_CRITICAL(&micMux);
+        rms = mic_level_rms;
+    portEXIT_CRITICAL(&micMux);
+    return rms;
+}
+
+uint8_t mic_get_level() {
+    uint8_t lvl;
+    portENTER_CRITICAL(&micMux);
+        lvl = mic_level;
+    portEXIT_CRITICAL(&micMux);
+    return lvl;
+}
+
+float mic_get_bark_confidence() {
+    float conf;
+    portENTER_CRITICAL(&micMux);
+        conf = bark_confidence;
+    portEXIT_CRITICAL(&micMux);
+    return conf;
+}
+
+bool mic_is_bark_detected() {
+    bool bark;
+    portENTER_CRITICAL(&micMux);
+        bark = bark_detected;
+    portEXIT_CRITICAL(&micMux);
+    return bark;
+}
+
+void readMicValuesExample() {
+  float rms_local;
+  uint8_t level_local;
+  float bark_local;
+  bool barkBool_local;
+  bool ready_local;
+
+  portENTER_CRITICAL(&micMux);
+    rms_local = mic_level_rms;
+    level_local = mic_level;
+    bark_local = bark_confidence;
+    barkBool_local = bark_detected;
+    ready_local = mic_ready;
+  portEXIT_CRITICAL(&micMux);
+
+  if (ready_local) {
+    Serial.printf("[Mic] RMS=%f, Level=%u%%, BarkProb=%f, Det=%d\n",
+                  rms_local, level_local, bark_local, barkBool_local ? 1 : 0);
+  }
+}
+
+void displayBarkPage() {
+  float rms;
+  uint8_t lvl;
+  float conf;
+  bool bark;
+
+  portENTER_CRITICAL(&micMux);
+    rms = mic_level_rms;
+    lvl = mic_level;
+    conf = bark_confidence;
+    bark = bark_detected;
+  portEXIT_CRITICAL(&micMux);
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(F("Bark: "));
+  lcd.print(bark ? "YES" : "NO");
+
+  lcd.setCursor(0, 1);
+  lcd.print(F("Conf: "));
+  lcd.print(conf, 2);
+}
+
+void displayMicrophoneNoisePage() {
+    float rms;
+    uint8_t lvl;
+
+    portENTER_CRITICAL(&micMux);
+        rms = mic_level_rms;
+        lvl = mic_level;
+    portEXIT_CRITICAL(&micMux);
+
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print(F("Mic Level: "));
+    lcd.print(lvl);
+    lcd.print(F("%"));
+
+    lcd.setCursor(0, 1);
+    lcd.print(F("RMS: "));
+    lcd.print(rms, 3);
 }

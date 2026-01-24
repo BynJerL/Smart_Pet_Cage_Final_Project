@@ -335,6 +335,7 @@ void logEventToSDCard (
     const char* action,
     const char* value = ""
 );
+void sendActuatorStateToFirebase (void);
 
 void readEEPROM();
 void writeEEPROM(const char* newSsid, const char* newPass);
@@ -2972,4 +2973,8 @@ void goBackScheduleView(void) {
         scheduleViewDirty = true;
     }
     Serial.println(F("[Schedule] Went back"));
+}
+
+void sendActuatorStateToFirebase (void) {
+    
 }

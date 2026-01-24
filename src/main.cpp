@@ -1860,6 +1860,16 @@ void checkAlerts (void) {
     } else {
         motionAlertActive = false;
     }
+
+    if (mic_is_bark_detected()) {
+        if (!barkAlertActive) {
+            Serial.println(F("[ALERT] Barking detected!"));
+            barkAlertActive = true;
+            sendLogToFirebase("alert", "barking_detected", "microphone", (int)(mic_get_bark_confidence() * 100), "device", "ai_inference");
+        }
+    } else {
+        barkAlertActive = false;
+    }
 }
 
 void handleMenuNavigation (int direction) {
@@ -2027,6 +2037,7 @@ void sendSensorDataToFirebase (void) {
     payload += "\"water_level\":" + String(waterLevelPercent, 2) + ",";
     payload += "\"food_level\":"  + String(foodLevelPercent, 2) + ",";
     payload += "\"mic_level\":"   + String(micAnalogValue) + ",";
+    appendMicInferenceToJSON(payload);
     payload += "\"gate_status\":\"" + String(isGateSwitchClosed ? "closed" : "open") + "\","; // string, add quotes
     payload += "\"timestamp\":"   + String(rtc.now().unixtime());
     payload += "}";

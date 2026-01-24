@@ -141,6 +141,16 @@ enum ScheduleViewMode : uint8_t {
     SCHED_VIEW_COUNT
 };
 
+enum AlertThresholdViewMode : uint8_t {
+    ALERT_VIEW_MAIN_MENU = 0,
+    ALERT_VIEW_TEMPERATURE,
+    ALERT_VIEW_HUMIDITY,
+    ALERT_VIEW_WATER_LEVEL,
+    ALERT_VIEW_FOOD_LEVEL,
+    ALERT_VIEW_BACK_OPTION,
+    ALERT_VIEW_COUNT
+};
+
 enum MenuID : uint8_t {
     MENU_SHOW_DATA = 0,
     MENU_CHECK_SCHEDULE,
@@ -265,6 +275,12 @@ uint8_t selectedScheduleIndex = 0;  // For detail view
 uint8_t currentScheduleIndex = 0; 
 unsigned long lastScheduleViewUpdate = 0;
 bool scheduleViewDirty = true;
+
+/* Alert Threshold View State */
+uint8_t alertThresholdViewMode = ALERT_VIEW_MAIN_MENU;
+uint8_t selectedAlertIndex = 0;  // For cycling through thresholds
+unsigned long lastAlertViewUpdate = 0;
+bool alertViewDirty = true;
 
 void initializeButtons (void);
 void initializeRelays (void);
@@ -421,6 +437,19 @@ void navigateScheduleMenu(int direction);
 void selectScheduleItem(void);
 void goBackScheduleView(void);
 void displayBackOption(void);
+
+void enterAlertThresholdMenu(void);
+void exitAlertThresholdMenu(void);
+void updateAlertThresholdView(void);
+void displayAlertThresholdMenu(void);
+void displayAlertMainMenu(void);
+void displayTemperatureThreshold(void);
+void displayHumidityThreshold(void);
+void displayWaterLevelThreshold(void);
+void displayFoodLevelThreshold(void);
+void displayAlertBackOption(void);
+void navigateAlertMenu(int direction);
+void selectAlertItem(void);
 
 void processMenuSelection(void);
 void displayConfigMenu(void);
@@ -705,7 +734,9 @@ void checkButtonStateChange (void) {
                     previousSlideshowScreen();
                 } else if (scheduleViewMode != SCHED_VIEW_MAIN_MENU) {
                     navigateScheduleMenu(-1);
-                }  else {
+                } else if (alertThresholdViewMode != ALERT_VIEW_MAIN_MENU) {
+                    navigateAlertMenu(-1);
+                } else {
                     handleMenuNavigation(-1);
                 }
             } else {
@@ -718,6 +749,8 @@ void checkButtonStateChange (void) {
                 Serial.println(F("C Button Pressed."));
                 if (scheduleViewMode != SCHED_VIEW_MAIN_MENU) {
                     selectScheduleItem();
+                } else if (alertThresholdViewMode != ALERT_VIEW_MAIN_MENU) {
+                    selectAlertItem();
                 } else {
                     processMenuSelection();
                 }
@@ -733,6 +766,8 @@ void checkButtonStateChange (void) {
                     nextSlideshowScreen();
                 } else if (scheduleViewMode != SCHED_VIEW_MAIN_MENU) {
                     navigateScheduleMenu(+1);
+                } else if (alertThresholdViewMode != ALERT_VIEW_MAIN_MENU) {
+                    navigateAlertMenu(+1);
                 } else {
                     handleMenuNavigation(+1);
                 }
@@ -1801,6 +1836,11 @@ void updateDisplayUI (void) {
         return;
     }
 
+    if (alertThresholdViewMode != ALERT_VIEW_MAIN_MENU) {
+        updateAlertThresholdView();
+        return;
+    }
+
     if (isConfigMode) return;
 
     if (!menuDirty && (now - lastUIUpdate < UI_REFRESH_INTERVAL_MS)) {
@@ -2712,6 +2752,9 @@ void processMenuSelection(void) {
             Serial.println(F("Schedule menu entered. Use L/R/C to navigate."));
             break;
         case MENU_CHECK_THRESHOLD:
+            enterAlertThresholdMenu();
+            selectAlertItem();
+            Serial.println(F("Alert threshold menu entered. Use L/R/C to navigate."));
             break;
         default:
             break;
@@ -3092,4 +3135,194 @@ void displayBackOption(void) {
     lcd.print(F("< Go Back >"));
     lcd.setCursor(0, 1);
     lcd.print(F("Press C to return"));
+}
+
+void enterAlertThresholdMenu(void) {
+    Serial.println(F("[Alert Menu] Entered alert threshold view"));
+    alertThresholdViewMode = ALERT_VIEW_MAIN_MENU;
+    selectedAlertIndex = 0;
+    alertViewDirty = true;
+    updateAlertThresholdView();
+}
+
+void exitAlertThresholdMenu(void) {
+    Serial.println(F("[Alert Menu] Exited alert threshold view"));
+    alertThresholdViewMode = ALERT_VIEW_MAIN_MENU;
+    selectedAlertIndex = 0;
+    alertViewDirty = true;
+    menuDirty = true;
+}
+
+void updateAlertThresholdView(void) {
+    unsigned long now = millis();
+    
+    if (!alertViewDirty && (now - lastAlertViewUpdate < UI_REFRESH_INTERVAL_MS)) {
+        return;
+    }
+    
+    lastAlertViewUpdate = now;
+    alertViewDirty = false;
+    
+    displayAlertThresholdMenu();
+}
+
+void displayAlertThresholdMenu(void) {
+    lcd.clear();
+    
+    switch (alertThresholdViewMode) {
+        case ALERT_VIEW_MAIN_MENU:
+            displayAlertMainMenu();
+            break;
+        case ALERT_VIEW_TEMPERATURE:
+            displayTemperatureThreshold();
+            break;
+        case ALERT_VIEW_HUMIDITY:
+            displayHumidityThreshold();
+            break;
+        case ALERT_VIEW_WATER_LEVEL:
+            displayWaterLevelThreshold();
+            break;
+        case ALERT_VIEW_FOOD_LEVEL:
+            displayFoodLevelThreshold();
+            break;
+        case ALERT_VIEW_BACK_OPTION:
+            displayAlertBackOption();
+            break;
+        default:
+            break;
+    }
+}
+
+void displayAlertMainMenu(void) {
+    lcd.setCursor(0, 0);
+    lcd.print(F(">ALERT THRES<"));
+    
+    lcd.setCursor(0, 1);
+    lcd.print(F("Temp/Hum/Level"));
+    
+    Serial.println(F("[Alert] Main menu - Use R to navigate"));
+}
+
+void displayTemperatureThreshold(void) {
+    lcd.setCursor(0, 0);
+    lcd.print(F("Temp (C)"));
+    
+    lcd.setCursor(0, 1);
+    lcd.print(F("H:"));
+    lcd.print(tempHighThreshold, 1);
+    lcd.print(F(" L:"));
+    lcd.print(tempLowThreshold, 1);
+}
+
+void displayHumidityThreshold(void) {
+    lcd.setCursor(0, 0);
+    lcd.print(F("Humidity (%)"));
+    
+    lcd.setCursor(0, 1);
+    lcd.print(F("H:"));
+    lcd.print(humHighThreshold, 1);
+    lcd.print(F(" L:"));
+    lcd.print(humLowThreshold, 1);
+}
+
+void displayWaterLevelThreshold(void) {
+    lcd.setCursor(0, 0);
+    lcd.print(F("Water Level (%)"));
+    
+    lcd.setCursor(0, 1);
+    lcd.print(F("L:"));
+    lcd.print(waterLowThreshold, 1);
+    lcd.print(F(" H:"));
+    lcd.print(waterHighThreshold, 1);
+}
+
+void displayFoodLevelThreshold(void) {
+    lcd.setCursor(0, 0);
+    lcd.print(F("Food Level (%)"));
+    
+    lcd.setCursor(0, 1);
+    lcd.print(F("L:"));
+    lcd.print(foodLowThreshold, 1);
+    lcd.print(F(" H:"));
+    lcd.print(foodHighThreshold, 1);
+}
+
+void displayAlertBackOption(void) {
+    lcd.setCursor(0, 0);
+    lcd.print(F("< Go Back >"));
+    
+    lcd.setCursor(0, 1);
+    lcd.print(F("Press C to return"));
+}
+
+void navigateAlertMenu(int direction) {
+    switch (alertThresholdViewMode) {
+        case ALERT_VIEW_MAIN_MENU:
+            // L/R buttons don't navigate from main menu
+            break;
+            
+        case ALERT_VIEW_TEMPERATURE:
+        case ALERT_VIEW_HUMIDITY:
+        case ALERT_VIEW_WATER_LEVEL:
+        case ALERT_VIEW_FOOD_LEVEL:
+            // R button cycles through thresholds
+            if (direction > 0) {
+                alertThresholdViewMode++;
+                if (alertThresholdViewMode > ALERT_VIEW_FOOD_LEVEL) {
+                    alertThresholdViewMode = ALERT_VIEW_TEMPERATURE;
+                }
+                alertViewDirty = true;
+                Serial.print(F("[Alert] Switched to threshold mode: "));
+                Serial.println(alertThresholdViewMode);
+            }
+            // L button goes back to previous threshold
+            else if (direction < 0) {
+                if (alertThresholdViewMode == ALERT_VIEW_TEMPERATURE) {
+                    alertThresholdViewMode = ALERT_VIEW_FOOD_LEVEL;
+                } else {
+                    alertThresholdViewMode--;
+                }
+                alertViewDirty = true;
+                Serial.print(F("[Alert] Switched to threshold mode: "));
+                Serial.println(alertThresholdViewMode);
+            }
+            break;
+            
+        case ALERT_VIEW_BACK_OPTION:
+            // L/R don't navigate in back option
+            break;
+            
+        default:
+            break;
+    }
+}
+
+void selectAlertItem(void) {
+    switch (alertThresholdViewMode) {
+        case ALERT_VIEW_MAIN_MENU:
+            // C button to enter Temperature threshold
+            alertThresholdViewMode = ALERT_VIEW_TEMPERATURE;
+            alertViewDirty = true;
+            Serial.println(F("[Alert] Viewing Temperature threshold"));
+            break;
+            
+        case ALERT_VIEW_TEMPERATURE:
+        case ALERT_VIEW_HUMIDITY:
+        case ALERT_VIEW_WATER_LEVEL:
+        case ALERT_VIEW_FOOD_LEVEL:
+            // C button to show back option
+            alertThresholdViewMode = ALERT_VIEW_BACK_OPTION;
+            alertViewDirty = true;
+            Serial.println(F("[Alert] Showing back option"));
+            break;
+            
+        case ALERT_VIEW_BACK_OPTION:
+            // C button to go back to main menu
+            exitAlertThresholdMenu();
+            Serial.println(F("[Alert] Returned to main menu"));
+            break;
+            
+        default:
+            break;
+    }
 }

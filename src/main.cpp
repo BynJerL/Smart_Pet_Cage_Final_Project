@@ -742,6 +742,7 @@ void checkButtonStateChange (void) {
             if (!(buttonState & _BV(GATE_BUTTON))) {
                 Serial.println(F("Gate Button Pressed."));
                 toggleGate();
+                sendActuatorStateToFirebase();
                 sendLogToFirebase("actuator", "gate_toggle", "gate", actuatorState & _BV(GATE_RELAY) ? 0 : 1, "device", "manual_button");
             } else {
                 Serial.println(F("Gate Button Released."));
@@ -753,6 +754,7 @@ void checkButtonStateChange (void) {
                 Serial.println(F("Pump Button Pressed."));
                 startPump();
                 bool pumpState = actuatorState & _BV(PUMP_RELAY) ? 0 : 1;
+                sendActuatorStateToFirebase();
                 sendLogToFirebase("actuator", "pump_on", "pump", pumpState, "device", "manual_button");
             } else {
                 Serial.println(F("Pump Button Released."));
@@ -763,6 +765,7 @@ void checkButtonStateChange (void) {
             if (!(buttonState & _BV(FAN_BUTTON))) {
                 Serial.println(F("Fan Button Pressed."));
                 toggleFan();
+                sendActuatorStateToFirebase();
                 sendLogToFirebase("actuator", "fan_toggle", "fan", actuatorState & _BV(FAN_RELAY) ? 0 : 1, "device", "manual_button");
             } else {
                 Serial.println(F("Fan Button Released."));
@@ -773,6 +776,7 @@ void checkButtonStateChange (void) {
             if (!(buttonState & _BV(FEEDER_BUTTON))) {
                 Serial.println(F("Feeder Button Pressed."));
                 startFeeder();
+                sendActuatorStateToFirebase();
                 sendLogToFirebase("actuator", "feeder_on", "feeder", isFeederRunning, "device", "manual_button");
             } else {
                 Serial.println(F("Feeder Button Released."));
@@ -805,21 +809,25 @@ void checkSerialCommand (void) {
             case '1': 
                 toggleGate();
                 Serial.println(F("Gate Relay Toggled."));
+                sendActuatorStateToFirebase();
                 sendLogToFirebase("actuator", "gate_toggle", "gate", actuatorState & _BV(GATE_RELAY) ? 0 : 1, "device", "manual_serial");
                 break;
             case '2':
                 startPump();
                 Serial.println(F("Pump Relay Activated."));
+                sendActuatorStateToFirebase();
                 sendLogToFirebase("actuator", "pump_on", "pump", actuatorState & _BV(PUMP_RELAY) ? 0 : 1, "device", "manual_serial");
                 break;
             case '3':
                 toggleFan();
                 Serial.println(F("Fan Relay Toggled."));
+                sendActuatorStateToFirebase();
                 sendLogToFirebase("actuator", "fan_toggle", "fan", actuatorState & _BV(FAN_RELAY) ? 0 : 1, "device", "manual_serial");
                 break;
             case '4':
                 startFeeder();
                 Serial.println(F("Feeder Activated."));
+                sendActuatorStateToFirebase();
                 sendLogToFirebase("actuator", "feeder_on", "feeder", isFeederRunning, "device", "manual_serial");
                 break;
             case 't':
@@ -925,6 +933,10 @@ void checkSerialCommand (void) {
                     startSensorDataSlideshow();
                     Serial.println(F("Sensor slideshow started. Use < and > to navigate."));
                 }
+                break;
+            case 'A':  // 'A' for Actuator state upload
+                sendActuatorStateToFirebase();
+                Serial.println(F("Uploading actuator state to Firebase..."));
                 break;
             // case 'd':
             //     IPAddress serverIP;
@@ -1134,7 +1146,8 @@ void checkScheduleExecution(void) {
                 startPump();
                 sendLogToFirebase("actuator", "pump_on", "pump", 1, "device", "schedule");
             }
-
+            
+            sendActuatorStateToFirebase();
             schedules[i].executed = true;
         }
     }
@@ -2157,6 +2170,7 @@ void executeCommand (const String& action, const String& target) {
             startFeeder();
             sendLogToFirebase("actuator", "feeder_on", "feeder", 1, "app", "command");
         }
+        sendActuatorStateToFirebase();
         return;
     }
 
@@ -2177,6 +2191,7 @@ void executeCommand (const String& action, const String& target) {
             stopFeeder();
             sendLogToFirebase("actuator", "feeder_off", "feeder", 0, "app", "command");
         }
+        sendActuatorStateToFirebase();
         return;
     }
 
@@ -2189,6 +2204,7 @@ void executeCommand (const String& action, const String& target) {
             toggleGate();
             sendLogToFirebase("actuator", "gate_toggle", "gate", actuatorState & _BV(GATE_RELAY) ? 0 : 1, "app", "command");
         }
+        sendActuatorStateToFirebase();
         return;
     }
 

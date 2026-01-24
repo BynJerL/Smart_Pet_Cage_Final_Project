@@ -452,15 +452,15 @@ void setup () {
         } else {
             Serial.println(F("WiFi failed, entering config mode"));
             isConfigMode = true;
-            printHeap();
             startConfigAP();
-            printHeap();
+            displayConfigMenu();
             return; // stop normal boot
         }
     } else {
         Serial.println(F("No WiFi credentials found"));
         isConfigMode = true;
         startConfigAP();
+        displayConfigMenu();
         return;
     }
 
@@ -1800,6 +1800,8 @@ void updateDisplayUI (void) {
         updateScheduleViewMenu();
         return;
     }
+
+    if (isConfigMode) return;
 
     if (!menuDirty && (now - lastUIUpdate < UI_REFRESH_INTERVAL_MS)) {
         return;

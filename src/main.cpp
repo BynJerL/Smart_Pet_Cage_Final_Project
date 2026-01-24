@@ -68,6 +68,7 @@
 #define SENSOR_DATA_PATCH_INTERVAL_MS 6000    // Keep the system responsive
 #define COMMAND_POLL_INTERVAL_MS      5000
 #define ACTUATOR_CONTROL_COOLDOWN     5000    // 5s cooldown
+#define HEARTBEAT_INTERVAL_MS        10000   // 10s
 
 #define TIMEZONE_OFFSET_SEC         (7 * 3600)
 #define NTP_SYNC_INTERVAL           (6UL * 60UL * 60UL * 1000UL)
@@ -220,6 +221,7 @@ unsigned long lastSensorReadTime = 0;
 unsigned long lastUIUpdate = 0;
 unsigned long lastDataPatch = 0;
 unsigned long lastCommandPoll = 0;
+unsigned long lastHeartbeat = 0;
 
 byte actuatorState = 0b00000111; // Only use 3 bit for now
 byte lastActuatorState = 0b00000111; // Only use 3 bit for now
@@ -320,7 +322,7 @@ static float *ei_input_global = nullptr;
 
 void initializeButtons (void);
 void initializeRelays (void);
-void initializeFeeder (void); // Not yet implemented now
+void initializeFeeder (void); 
 void initializeAHT (void);
 void initializeBMP (void);
 void initializeMotionSensor (void);
@@ -3725,4 +3727,47 @@ void displayMicrophoneNoisePage() {
     lcd.setCursor(0, 1);
     lcd.print(F("RMS: "));
     lcd.print(rms, 3);
+}
+
+void sendDeviceHeartbeat (void) {
+    if (millis() - lastHeartbeat< HEARTBEAT_INTERVAL_MS) {
+        return;
+    }
+    lastHeartbeat = millis();
+
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println(F("[Heartbeat] WiFi not connected, aborting heartbeat send."));
+        return;
+    }
+
+    fbClient.setInsecure();  // Firebase HTTPS
+
+    String url = String(FIREBASE_URL) + "/heartbeat.json";
+    url = withAuth(url);
+
+    String payload = "{";
+    payload += "\"last_seen\":" + String(rtc.now().unixtime());
+    payload += "}";
+
+    http.begin(fbClient, url);
+    http.addHeader("Content-Type", "application/json");
+
+    int httpCode = http.PATCH(payload);
+
+    if (httpCode > 0) {
+        Serial.print(F("[Heartbeat] PATCH code: "));
+        Serial.println(httpCode);
+
+        if (httpCode == HTTP_CODE_OK) {
+            Serial.println(F("[Heartbeat] Device heartbeat sent successfully."));
+        } else {
+            Serial.print(F("[Heartbeat] Response: "));
+            Serial.println(http.getString());
+        }
+    } else {
+        Serial.print(F("[Heartbeat] PATCH failed: "));
+        Serial.println(http.errorToString(httpCode));
+    }
+
+    http.end();
 }

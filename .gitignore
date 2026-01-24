@@ -5,3 +5,4 @@
 .vscode/ipch
 src/myconfig.h
 test/config.json
+lib/Dog_Sound_Detector_inferencing

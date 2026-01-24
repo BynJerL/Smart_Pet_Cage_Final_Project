@@ -1861,6 +1861,28 @@ void checkAlerts (void) {
         motionAlertActive = false;
     }
 
+    if (foodLevelPercent <= foodLowThreshold) {
+        if (!foodLowAlertActive) {
+            Serial.println(F("[ALERT] Food level LOW!"));
+            foodLowAlertActive = true;
+            sendLogToFirebase("alert", "food_level_low", "food_level", (int)foodLevelPercent, "device", "threshold_exceeded");
+        }
+    } else if (foodLowAlertActive) {
+        foodLowAlertActive = false;
+        sendLogToFirebase("alert", "food_level_normal", "food_level", (int)foodLevelPercent, "device", "recovered");
+    }
+
+    if (waterLevelPercent <= waterLowThreshold) {
+        if (!waterLowAlertActive) {
+            Serial.println(F("[ALERT] Water level LOW!"));
+            waterLowAlertActive = true;
+            sendLogToFirebase("alert", "water_level_low", "water_level", (int)waterLevelPercent, "device", "threshold_exceeded");
+        }
+    } else if (waterLowAlertActive) {
+        waterLowAlertActive = false;
+        sendLogToFirebase("alert", "water_level_normal", "water_level", (int)waterLevelPercent, "device", "recovered");
+    }
+
     if (mic_is_bark_detected()) {
         if (!barkAlertActive) {
             Serial.println(F("[ALERT] Barking detected!"));

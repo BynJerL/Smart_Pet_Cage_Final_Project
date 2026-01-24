@@ -2976,5 +2976,66 @@ void goBackScheduleView(void) {
 }
 
 void sendActuatorStateToFirebase (void) {
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println(F("[Firebase] WiFi not connected, aborting actuator state send."));
+        return;
+    }
+
+    fbClient.setInsecure();  // Firebase HTTPS
+
+    String url = String(FIREBASE_URL) + "/status.json";
+    if (strlen(FIREBASE_AUTH) > 0) {
+        url += "?auth=";
+        url += FIREBASE_AUTH;
+    }
+
+    // ---- Build JSON payload with actuator states ----
+    String payload = "{";
+    payload += "\"gate\":{";
+    payload += "\"state\":" + String((actuatorState & _BV(GATE_RELAY)) ? "\"off\"" : "\"on\"") + ",";
+    payload += "\"raw_bit\":" + String((actuatorState & _BV(GATE_RELAY)) ? 1 : 0);
+    payload += "},";
     
+    payload += "\"pump\":{";
+    payload += "\"state\":" + String((actuatorState & _BV(PUMP_RELAY)) ? "\"off\"" : "\"on\"") + ",";
+    payload += "\"raw_bit\":" + String((actuatorState & _BV(PUMP_RELAY)) ? 1 : 0) + ",";
+    payload += "\"active\":" + String(pumpTimer.active ? "true" : "false");
+    payload += "},";
+    
+    payload += "\"fan\":{";
+    payload += "\"state\":" + String((actuatorState & _BV(FAN_RELAY)) ? "\"off\"" : "\"on\"") + ",";
+    payload += "\"raw_bit\":" + String((actuatorState & _BV(FAN_RELAY)) ? 1 : 0);
+    payload += "},";
+    
+    payload += "\"feeder\":{";
+    payload += "\"state\":" + String(isFeederRunning ? "\"on\"" : "\"off\"") + ",";
+    payload += "\"active\":" + String(feederTimer.active ? "true" : "false");
+    payload += "},";
+    
+    payload += "\"timestamp\":" + String(rtc.now().unixtime());
+    payload += "}";
+
+    http.begin(fbClient, url);
+    http.addHeader("Content-Type", "application/json");
+
+    int httpCode = http.PATCH(payload);
+
+    if (httpCode > 0) {
+        Serial.print(F("[Actuator] PATCH code: "));
+        Serial.println(httpCode);
+
+        if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED) {
+            Serial.println(F("[Actuator] State updated to Firebase successfully."));
+            Serial.print(F("[Actuator] Payload: "));
+            Serial.println(payload);
+        } else {
+            Serial.print(F("[Actuator] Unexpected response: "));
+            Serial.println(http.getString());
+        }
+    } else {
+        Serial.print(F("[Actuator] PATCH failed: "));
+        Serial.println(http.errorToString(httpCode));
+    }
+
+    http.end();
 }

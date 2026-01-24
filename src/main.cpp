@@ -131,6 +131,15 @@ enum SlideshowScreen : uint8_t {
     SLIDE_COUNT
 };
 
+enum ScheduleViewMode : uint8_t {
+    SCHED_VIEW_MAIN_MENU = 0,
+    SCHED_VIEW_FEEDER_LIST,
+    SCHED_VIEW_WATER_LIST,
+    SCHED_VIEW_FEEDER_DETAIL,
+    SCHED_VIEW_WATER_DETAIL,
+    SCHED_VIEW_COUNT
+};
+
 enum MenuID : uint8_t {
     MENU_SHOW_DATA = 0,
     MENU_CHECK_SCHEDULE,
@@ -248,6 +257,12 @@ int8_t rgbMode = 0;
 uint8_t currentSlideshowScreen = SLIDE_TEMP_HUM;
 unsigned long lastSlideshowAdvance = 0;
 bool slideshowActive = false;
+
+/* Schedule View State */
+uint8_t scheduleViewMode = SCHED_VIEW_MAIN_MENU;
+uint8_t selectedScheduleIndex = 0;  // For detail view
+unsigned long lastScheduleViewUpdate = 0;
+bool scheduleViewDirty = true;
 
 void initializeButtons (void);
 void initializeRelays (void);
@@ -390,6 +405,18 @@ void displaySlideWaterLevel(void);
 void displaySlideFoodLevel(void);
 void displaySlideMotionGate(void);
 void displaySlideSystemInfo(void);
+
+void enterScheduleViewMenu(void);
+void exitScheduleViewMenu(void);
+void updateScheduleViewMenu(void);
+void displayScheduleViewMenu(void);
+void displayScheduleMainMenu(void);
+void displayFeederScheduleList(void);
+void displayWaterScheduleList(void);
+void displayScheduleDetail(uint8_t index);
+void navigateScheduleMenu(int direction);
+void selectScheduleItem(void);
+void goBackScheduleView(void);
 
 void processMenuSelection(void);
 void displayConfigMenu(void);
@@ -672,7 +699,9 @@ void checkButtonStateChange (void) {
                 Serial.println(F("L Button Pressed."));
                 if (slideshowActive) {
                     previousSlideshowScreen();
-                } else {
+                } else if (scheduleViewMode != SCHED_VIEW_MAIN_MENU) {
+                    navigateScheduleMenu(-1);
+                }  else {
                     handleMenuNavigation(-1);
                 }
             } else {
@@ -683,7 +712,11 @@ void checkButtonStateChange (void) {
         if ((buttonState & _BV(C_BUTTON)) != (lastButtonState & _BV(C_BUTTON))) {
             if (!(buttonState & _BV(C_BUTTON))) {
                 Serial.println(F("C Button Pressed."));
-                processMenuSelection();
+                if (scheduleViewMode != SCHED_VIEW_MAIN_MENU) {
+                    selectScheduleItem();
+                } else {
+                    processMenuSelection();
+                }
             } else {
                 Serial.println(F("C Button Released."));
             }
@@ -694,6 +727,8 @@ void checkButtonStateChange (void) {
                 Serial.println(F("R Button Pressed."));
                 if (slideshowActive) {
                     nextSlideshowScreen();
+                } else if (scheduleViewMode != SCHED_VIEW_MAIN_MENU) {
+                    navigateScheduleMenu(+1);
                 } else {
                     handleMenuNavigation(+1);
                 }
@@ -1741,6 +1776,11 @@ void renderMenuUI (void) {
 void updateDisplayUI (void) {
     unsigned long now = millis();
 
+    if (scheduleViewMode != SCHED_VIEW_MAIN_MENU) {
+        updateScheduleViewMenu();
+        return;
+    }
+
     if (!menuDirty && (now - lastUIUpdate < UI_REFRESH_INTERVAL_MS)) {
         return;
     }
@@ -2642,6 +2682,8 @@ void processMenuSelection(void) {
             Serial.println(F("Sensor slideshow started. Use < and > to navigate."));
             break;
         case MENU_CHECK_SCHEDULE:
+            enterScheduleViewMenu();
+            Serial.println(F("Schedule menu entered. Use L/R/C to navigate."));
             break;
         case MENU_MANUAL_SCHEDULE:
             break;
@@ -2656,4 +2698,278 @@ void displayConfigMenu(void) {
     lcd.print(F("Config Menu IP:"));
     lcd.setCursor(0, 1);
     lcd.print(WiFi.softAPIP());
+}
+
+void enterScheduleViewMenu(void) {
+    Serial.println(F("[Schedule Menu] Entered schedule view"));
+    scheduleViewMode = SCHED_VIEW_MAIN_MENU;
+    selectedScheduleIndex = 0;
+    scheduleViewDirty = true;
+    updateScheduleViewMenu();
+}
+
+void exitScheduleViewMenu(void) {
+    Serial.println(F("[Schedule Menu] Exited schedule view"));
+    scheduleViewMode = SCHED_VIEW_MAIN_MENU;
+    selectedScheduleIndex = 0;
+    scheduleViewDirty = true;
+    menuDirty = true;
+}
+
+void updateScheduleViewMenu(void) {
+    unsigned long now = millis();
+    
+    if (!scheduleViewDirty && (now - lastScheduleViewUpdate < UI_REFRESH_INTERVAL_MS)) {
+        return;
+    }
+    
+    lastScheduleViewUpdate = now;
+    scheduleViewDirty = false;
+    
+    displayScheduleViewMenu();
+}
+
+void displayScheduleViewMenu(void) {
+    lcd.clear();
+    
+    switch (scheduleViewMode) {
+        case SCHED_VIEW_MAIN_MENU:
+            displayScheduleMainMenu();
+            break;
+        case SCHED_VIEW_FEEDER_LIST:
+            displayFeederScheduleList();
+            break;
+        case SCHED_VIEW_WATER_LIST:
+            displayWaterScheduleList();
+            break;
+        case SCHED_VIEW_FEEDER_DETAIL:
+            displayScheduleDetail(selectedScheduleIndex);
+            break;
+        case SCHED_VIEW_WATER_DETAIL:
+            displayScheduleDetail(selectedScheduleIndex);
+            break;
+        default:
+            break;
+    }
+}
+
+void displayScheduleMainMenu(void) {
+    lcd.setCursor(0, 0);
+    lcd.print(F("> SCHEDULE <"));
+    
+    lcd.setCursor(0, 1);
+    lcd.print(F("Feeder / Water"));
+    
+    Serial.println(F("[Schedule] Main menu - Use L/R to select"));
+}
+
+void displayFeederScheduleList(void) {
+    // Count enabled feeder schedules
+    uint8_t feederCount = 0;
+    uint8_t feederIndices[MAX_SCHEDULES];
+    
+    for (uint8_t i = 0; i < MAX_SCHEDULES; i++) {
+        if (schedules[i].enabled && schedules[i].type == SCHED_FEEDER) {
+            feederIndices[feederCount] = i;
+            feederCount++;
+        }
+    }
+    
+    if (feederCount == 0) {
+        lcd.setCursor(0, 0);
+        lcd.print(F("< Feeder >"));
+        lcd.setCursor(0, 1);
+        lcd.print(F("No schedules"));
+        return;
+    }
+    
+    // Wrap selection index
+    if (selectedScheduleIndex >= feederCount) {
+        selectedScheduleIndex = 0;
+    }
+    
+    uint8_t currentIdx = feederIndices[selectedScheduleIndex];
+    
+    lcd.setCursor(0, 0);
+    lcd.print(F("< Feeder "));
+    lcd.print(selectedScheduleIndex + 1);
+    lcd.print(F("/"));
+    lcd.print(feederCount);
+    lcd.print(F(" >"));
+    
+    lcd.setCursor(0, 1);
+    lcd.print(F("Time: "));
+    lcd.print(schedules[currentIdx].time);
+    if (schedules[currentIdx].executed) {
+        lcd.print(F(" [D]"));  // D for Done
+    } else {
+        lcd.print(F(" [ ]"));
+    }
+    
+    Serial.print(F("[Schedule] Feeder #"));
+    Serial.print(selectedScheduleIndex + 1);
+    Serial.print(F(" - "));
+    Serial.println(schedules[currentIdx].time);
+}
+
+void displayWaterScheduleList(void) {
+    // Count enabled water schedules
+    uint8_t waterCount = 0;
+    uint8_t waterIndices[MAX_SCHEDULES];
+    
+    for (uint8_t i = 0; i < MAX_SCHEDULES; i++) {
+        if (schedules[i].enabled && schedules[i].type == SCHED_WATER) {
+            waterIndices[waterCount] = i;
+            waterCount++;
+        }
+    }
+    
+    if (waterCount == 0) {
+        lcd.setCursor(0, 0);
+        lcd.print(F("< Water >"));
+        lcd.setCursor(0, 1);
+        lcd.print(F("No schedules"));
+        return;
+    }
+    
+    // Wrap selection index
+    if (selectedScheduleIndex >= waterCount) {
+        selectedScheduleIndex = 0;
+    }
+    
+    uint8_t currentIdx = waterIndices[selectedScheduleIndex];
+    
+    lcd.setCursor(0, 0);
+    lcd.print(F("< Water "));
+    lcd.print(selectedScheduleIndex + 1);
+    lcd.print(F("/"));
+    lcd.print(waterCount);
+    lcd.print(F(" >"));
+    
+    lcd.setCursor(0, 1);
+    lcd.print(F("Time: "));
+    lcd.print(schedules[currentIdx].time);
+    if (schedules[currentIdx].executed) {
+        lcd.print(F(" [D]"));  // D for Done
+    } else {
+        lcd.print(F(" [ ]"));
+    }
+    
+    Serial.print(F("[Schedule] Water #"));
+    Serial.print(selectedScheduleIndex + 1);
+    Serial.print(F(" - "));
+    Serial.println(schedules[currentIdx].time);
+}
+
+void displayScheduleDetail(uint8_t index) {
+    if (index >= MAX_SCHEDULES) return;
+    
+    ScheduleSlot& slot = schedules[index];
+    
+    lcd.setCursor(0, 0);
+    lcd.print(slot.type == SCHED_FEEDER ? F("FEEDER") : F("WATER"));
+    lcd.print(F(" #"));
+    lcd.print(index + 1);
+    
+    lcd.setCursor(0, 1);
+    lcd.print(F("Time: "));
+    lcd.print(slot.time);
+    lcd.print(F(" - "));
+    lcd.print(slot.enabled ? F("ON") : F("OFF"));
+}
+
+void navigateScheduleMenu(int direction) {
+    switch (scheduleViewMode) {
+        case SCHED_VIEW_MAIN_MENU:
+            // Cycle between Feeder and Water
+            if (direction > 0) {
+                scheduleViewMode = SCHED_VIEW_FEEDER_LIST;
+            } else {
+                scheduleViewMode = SCHED_VIEW_WATER_LIST;
+            }
+            selectedScheduleIndex = 0;
+            scheduleViewDirty = true;
+            break;
+            
+        case SCHED_VIEW_FEEDER_LIST: {
+            // Count feeder schedules
+            uint8_t count = 0;
+            for (uint8_t i = 0; i < MAX_SCHEDULES; i++) {
+                if (schedules[i].enabled && schedules[i].type == SCHED_FEEDER) {
+                    count++;
+                }
+            }
+            if (count > 0) {
+                selectedScheduleIndex += direction;
+                if (selectedScheduleIndex < 0) selectedScheduleIndex = count - 1;
+                if (selectedScheduleIndex >= count) selectedScheduleIndex = 0;
+                scheduleViewDirty = true;
+            }
+            break;
+        }
+            
+        case SCHED_VIEW_WATER_LIST: {
+            // Count water schedules
+            uint8_t count = 0;
+            for (uint8_t i = 0; i < MAX_SCHEDULES; i++) {
+                if (schedules[i].enabled && schedules[i].type == SCHED_WATER) {
+                    count++;
+                }
+            }
+            if (count > 0) {
+                selectedScheduleIndex += direction;
+                if (selectedScheduleIndex < 0) selectedScheduleIndex = count - 1;
+                if (selectedScheduleIndex >= count) selectedScheduleIndex = 0;
+                scheduleViewDirty = true;
+            }
+            break;
+        }
+            
+        default:
+            break;
+    }
+}
+
+void selectScheduleItem(void) {
+    switch (scheduleViewMode) {
+        case SCHED_VIEW_MAIN_MENU:
+            // C button to enter submenu
+            scheduleViewMode = SCHED_VIEW_FEEDER_LIST;
+            selectedScheduleIndex = 0;
+            scheduleViewDirty = true;
+            Serial.println(F("[Schedule] Entered Feeder list"));
+            break;
+            
+        case SCHED_VIEW_FEEDER_LIST:
+        case SCHED_VIEW_WATER_LIST:
+            // C button to view detail
+            Serial.println(F("[Schedule] Viewing schedule detail"));
+            scheduleViewMode = (scheduleViewMode == SCHED_VIEW_FEEDER_LIST) ? 
+                               SCHED_VIEW_FEEDER_DETAIL : SCHED_VIEW_WATER_DETAIL;
+            scheduleViewDirty = true;
+            break;
+            
+        case SCHED_VIEW_FEEDER_DETAIL:
+        case SCHED_VIEW_WATER_DETAIL:
+            // C button to go back
+            goBackScheduleView();
+            break;
+            
+        default:
+            break;
+    }
+}
+
+void goBackScheduleView(void) {
+    if (scheduleViewMode == SCHED_VIEW_FEEDER_DETAIL || 
+        scheduleViewMode == SCHED_VIEW_WATER_DETAIL) {
+        scheduleViewMode = (scheduleViewMode == SCHED_VIEW_FEEDER_DETAIL) ? 
+                          SCHED_VIEW_FEEDER_LIST : SCHED_VIEW_WATER_LIST;
+        scheduleViewDirty = true;
+    } else if (scheduleViewMode == SCHED_VIEW_FEEDER_LIST || 
+               scheduleViewMode == SCHED_VIEW_WATER_LIST) {
+        scheduleViewMode = SCHED_VIEW_MAIN_MENU;
+        scheduleViewDirty = true;
+    }
+    Serial.println(F("[Schedule] Went back"));
 }

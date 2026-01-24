@@ -144,7 +144,7 @@ enum ScheduleViewMode : uint8_t {
 enum MenuID : uint8_t {
     MENU_SHOW_DATA = 0,
     MENU_CHECK_SCHEDULE,
-    MENU_MANUAL_SCHEDULE,
+    MENU_CHECK_THRESHOLD,
     MENU_COUNT
 };
 
@@ -2711,7 +2711,7 @@ void processMenuSelection(void) {
             selectScheduleItem();
             Serial.println(F("Schedule menu entered. Use L/R/C to navigate."));
             break;
-        case MENU_MANUAL_SCHEDULE:
+        case MENU_CHECK_THRESHOLD:
             break;
         default:
             break;

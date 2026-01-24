@@ -94,7 +94,7 @@ enum ScheduleType : uint8_t { SCHED_FEEDER, SCHED_WATER };
 enum MenuID : uint8_t {
   MENU_SHOW_DATA = 0,
   MENU_CHECK_SCHEDULE,
-  MENU_MANUAL_SCHEDULE,
+  MENU_CHECK_THRESHOLD,
   MENU_COUNT
 };
 

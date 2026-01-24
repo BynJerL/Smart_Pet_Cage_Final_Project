@@ -1959,6 +1959,10 @@ void sendSensorDataToFirebase (void) {
     payload += "\"pressure\":"    + String(bmpPressure, 2) + ",";
     payload += "\"altitude\":"    + String(bmpAltitude, 2) + ",";
     payload += "\"motion\":"      + String(motionDetected ? "true" : "false") + ",";
+    payload += "\"water_level\":" + String(waterLevelPercent, 2) + ",";
+    payload += "\"food_level\":"  + String(foodLevelPercent, 2) + ",";
+    payload += "\"mic_level\":"   + String(micAnalogValue) + ",";
+    payload += "\"gate_status\":" + String(isGateSwitchClosed ? "closed" : "open") + ",";
     payload += "\"timestamp\":"   + String(rtc.now().unixtime());
     payload += "}";
 

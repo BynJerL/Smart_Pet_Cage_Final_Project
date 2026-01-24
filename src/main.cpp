@@ -1953,18 +1953,20 @@ void sendSensorDataToFirebase (void) {
     }
 
     // ---- Build JSON payload ----
+    // Build JSON payload with proper quoting for booleans and strings
     String payload = "{";
     payload += "\"temperature\":" + String(ahtTemperature, 2) + ",";
     payload += "\"humidity\":"    + String(ahtHumidity, 2) + ",";
     payload += "\"pressure\":"    + String(bmpPressure, 2) + ",";
     payload += "\"altitude\":"    + String(bmpAltitude, 2) + ",";
-    payload += "\"motion\":"      + String(motionDetected ? "true" : "false") + ",";
+    payload += "\"motion\":"      + String(motionDetected ? "true" : "false") + ","; // boolean, no quotes
     payload += "\"water_level\":" + String(waterLevelPercent, 2) + ",";
     payload += "\"food_level\":"  + String(foodLevelPercent, 2) + ",";
     payload += "\"mic_level\":"   + String(micAnalogValue) + ",";
-    payload += "\"gate_status\":" + String(isGateSwitchClosed ? "closed" : "open") + ",";
+    payload += "\"gate_status\":\"" + String(isGateSwitchClosed ? "closed" : "open") + "\","; // string, add quotes
     payload += "\"timestamp\":"   + String(rtc.now().unixtime());
     payload += "}";
+    // Validate payload if needed before sending
 
     http.begin(fbClient, url);
     http.addHeader("Content-Type", "application/json");

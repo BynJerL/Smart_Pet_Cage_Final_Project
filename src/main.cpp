@@ -93,8 +93,8 @@
 #define LOW_WATER_THRESHOLD     20
 #define HIGH_WATER_THRESHOLD    80
 
-#define DEF_SEND_DATA_PERIODICALLY  false
-#define DEF_POLL_CMD_PERIODICALLY   false
+#define DEF_SEND_DATA_PERIODICALLY  true
+#define DEF_POLL_CMD_PERIODICALLY   true
 
 #define LCD_ROW 2
 #define LCD_COL 16
@@ -566,6 +566,7 @@ void loop () {
     sendSensorDataPeriodically();
     fetchCommandFromFirebasePeriodically();
     updateSensorDataSlideshow(); 
+    sendDeviceHeartbeat();
 
     if (isConfigMode) {
         server.handleClient();

@@ -60,7 +60,7 @@
 #define PCF8574_ADDRESS_2 0x21
 
 #define PUMP_ACTIVE_DUR               3500
-#define FEEDER_ACTIVE_DUR             2500
+#define FEEDER_ACTIVE_DUR             1500
 #define DEBOUNCE_DELAY_MS             50      // Debounce delay for button press
 #define PCF_READ_INTERVAL_MS          30
 #define SENSOR_READ_INTERVAL_MS       2000
@@ -254,10 +254,10 @@ float foodHighThreshold = HIGH_FOOD_THRESHOLD;
 float waterLowThreshold = LOW_WATER_THRESHOLD;
 float waterHighThreshold = HIGH_WATER_THRESHOLD;
 
-float foodFullDistance = 29.0;      // cm
-float foodEmptyDistance = 33.0;     // cm
-float waterFullDistance = 29.0;     // cm
-float waterEmptyDistance = 33.0;    // cm
+float foodFullDistance = 27.0;      // cm
+float foodEmptyDistance = 30.0;     // cm
+float waterFullDistance = 27.0;     // cm
+float waterEmptyDistance = 30.0;    // cm
 
 bool tempHighAlertActive = false;
 bool tempLowAlertActive = false;
@@ -319,6 +319,10 @@ const float BARK_CONF_THRESHOLD = 0.65f; // bark detection threshold
 // ---- audio buffer ----
 static int16_t audio_buffer[SAMPLE_LENGTH]; // 20000 int16_t
 static float *ei_input_global = nullptr;
+
+// Default Value
+unsigned long feederEnableDuration = FEEDER_ACTIVE_DUR;
+unsigned long pumpEnableDuration = PUMP_ACTIVE_DUR;
 
 void initializeButtons (void);
 void initializeRelays (void);
@@ -624,7 +628,7 @@ void initializeRelays (void) {
 void initializeFeeder (void) {
     feeder.setPeriodHertz(50);
     feeder.attach(FEEDER_PIN);
-    feeder.write(0); // Initial position
+    feeder.write(180); // Initial position
     Serial.println(F("feeder initialized successfully."));
 }
 void initializeRTC (void) {
@@ -1140,14 +1144,14 @@ void startFeeder(void) {
     feederTimer.startTime = millis();
 
     // For now: LED / relay simulation
-    feeder.write(180);
+    feeder.write(0);
     isFeederRunning = true;
     Serial.println(F("Feeder ON"));
 }
 
 void stopFeeder(void) {
     feederTimer.active = false;
-    feeder.write(0);
+    feeder.write(180);
     isFeederRunning = false;
     Serial.println(F("Feeder OFF"));
 }
@@ -2104,7 +2108,7 @@ void updateSensorThresholdFromFirebase (void) {
 
     fbClient.setInsecure();
 
-    String url = String(FIREBASE_URL) + "/threshold.json";
+    String url = String(FIREBASE_URL) + "/thresholds.json";
     if (strlen(FIREBASE_AUTH) > 0) {
         url += "?auth=";
         url += FIREBASE_AUTH;

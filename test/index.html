@@ -275,7 +275,7 @@ function loadSchedule() {
 }
 
 function loadThreshold() {
-  fetch(`${FIREBASE_URL}/threshold.json`)
+  fetch(`${FIREBASE_URL}/thresholds.json`)
     .then(res => res.json())
     .then(data => {
       if (!data) return;
@@ -336,7 +336,7 @@ function updateThreshold() {
     return;
   }
 
-  fetch(`${FIREBASE_URL}/threshold.json`, {
+  fetch(`${FIREBASE_URL}/thresholds.json`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(threshold)

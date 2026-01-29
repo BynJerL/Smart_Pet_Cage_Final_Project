@@ -205,6 +205,7 @@ bool rgbInitialized = false;
 bool isSendDataPeriodically = DEF_SEND_DATA_PERIODICALLY;
 bool isCommandPollPeriodically = DEF_POLL_CMD_PERIODICALLY;
 bool isFullFillingActive = false;
+bool isFanAutoMode = false;
 bool isFanAutoControlActive = false;
 
 bool isCommandExecuted = false;
@@ -429,7 +430,8 @@ void showMotionSensorData (void);
 void showMicData (void);
 void showGateSwitchData (void);
 void showSensorsData (void);
-void checkOccupationThresholds(void);
+void checkOccupationThresholds (void);
+void checkFanAutoControl (void);
 void displaySensorsDataOnLCD (void);
 void updateRGBMode (void);
 void watchdog (void);                   // Additional features (develop later)
@@ -575,6 +577,7 @@ void loop () {
     updateSensorDataSlideshow(); 
     sendDeviceHeartbeat();
     checkOccupationThresholds();
+    checkFanAutoControl();
 
     if (isConfigMode) {
         server.handleClient();
@@ -1060,6 +1063,11 @@ void checkSerialCommand (void) {
                 isFullFillingActive = !isFullFillingActive;
                 Serial.print(F("Continuous Mode: "));
                 Serial.println(isFullFillingActive ? F("ON") : F("OFF"));
+                break;
+            case 'F':  // Toggle fan auto mode
+                isFanAutoMode = !isFanAutoMode;
+                Serial.print(F("Fan Auto Mode: "));
+                Serial.println(isFanAutoMode ? F("ON") : F("OFF"));
                 break;
             // case 'd':
             //     IPAddress serverIP;
@@ -1728,7 +1736,8 @@ void printSerialCommandList (void) {
     Serial.println(F("/ - Force Fetch & Process Command"));
     Serial.println(F("d - Start/Stop Sensor Data Slideshow on LCD"));
     Serial.println(F("A - Upload Actuator State to Firebase"));
-    Serial.println(F("M - Toggle continuous feeder and pump activation"));
+    Serial.println(F("M - Toggle full-filling mode"));
+    Serial.println(F("F - Toggle fan auto mode"));
     Serial.println(F("i - Print this Command List"));
 }
 
@@ -3790,7 +3799,7 @@ void sendDeviceHeartbeat (void) {
     http.end();
 }
 
-void checkOccupationThresholds(void) {
+void checkOccupationThresholds (void) {
     // Auto-stop pump if water too high
     if (waterLevelPercent >= waterHighThreshold && pumpTimer.active) {
         Serial.println(F("[AUTO-OFF] Water level HIGH - stopping pump"));
@@ -3807,6 +3816,7 @@ void checkOccupationThresholds(void) {
 }
 
 void checkFanAutoControl (void) {
+    if (!isFanAutoMode) return;
     // Enable fan if temperature exceeds high threshold
     if (ahtTemperature >= tempHighThreshold && !isFanAutoControlActive) {
         Serial.print(F("[AUTO-FAN] Temperature HIGH ("));

@@ -204,6 +204,7 @@ bool rgbInitialized = false;
 
 bool isSendDataPeriodically = DEF_SEND_DATA_PERIODICALLY;
 bool isCommandPollPeriodically = DEF_POLL_CMD_PERIODICALLY;
+bool isFeederAndWaterContinuous = false;
 
 bool isCommandExecuted = false;
 
@@ -572,6 +573,7 @@ void loop () {
     fetchCommandFromFirebasePeriodically();
     updateSensorDataSlideshow(); 
     sendDeviceHeartbeat();
+    checkOccupationThresholds();
 
     if (isConfigMode) {
         server.handleClient();
@@ -900,17 +902,20 @@ void checkButtonStateChange (void) {
 void checkRelayActivity (void) {
     unsigned long now = millis();
 
-    // Pump timer
-    if (pumpTimer.active && (now - pumpTimer.startTime >= pumpTimer.duration)) {
-        stopPump();
-        sendActuatorStateToFirebase();
-    }
+    if (!isFeederAndWaterContinuous) {
+        // Pump timer
+        if (pumpTimer.active && (now - pumpTimer.startTime >= pumpTimer.duration)) {
+            stopPump();
+            sendActuatorStateToFirebase();
+        }
 
-    // Feeder timer
-    if (feederTimer.active && (now - feederTimer.startTime >= feederTimer.duration)) {
-        stopFeeder();
-        sendActuatorStateToFirebase();
+        // Feeder timer
+        if (feederTimer.active && (now - feederTimer.startTime >= feederTimer.duration)) {
+            stopFeeder();
+            sendActuatorStateToFirebase();
+        }
     }
+    
 }
 
 void checkSerialCommand (void) {
@@ -1049,6 +1054,11 @@ void checkSerialCommand (void) {
             case 'A':  // 'A' for Actuator state upload
                 sendActuatorStateToFirebase();
                 Serial.println(F("Uploading actuator state to Firebase..."));
+                break;
+            case 'M':  // Toggle continuous mode
+                isFeederAndWaterContinuous = !isFeederAndWaterContinuous;
+                Serial.print(F("Continuous Mode: "));
+                Serial.println(isFeederAndWaterContinuous ? F("ON") : F("OFF"));
                 break;
             // case 'd':
             //     IPAddress serverIP;
@@ -1717,6 +1727,7 @@ void printSerialCommandList (void) {
     Serial.println(F("/ - Force Fetch & Process Command"));
     Serial.println(F("d - Start/Stop Sensor Data Slideshow on LCD"));
     Serial.println(F("A - Upload Actuator State to Firebase"));
+    Serial.println(F("M - Toggle continuous feeder and pump activation"));
     Serial.println(F("i - Print this Command List"));
 }
 

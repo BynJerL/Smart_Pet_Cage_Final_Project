@@ -63,7 +63,7 @@
 #define FEEDER_ACTIVE_DUR             1500
 #define DEBOUNCE_DELAY_MS             50      // Debounce delay for button press
 #define PCF_READ_INTERVAL_MS          30
-#define SENSOR_READ_INTERVAL_MS       2000
+#define SENSOR_READ_INTERVAL_MS       1000
 #define UI_REFRESH_INTERVAL_MS        200
 #define SENSOR_DATA_PATCH_INTERVAL_MS 6000    // Keep the system responsive
 #define COMMAND_POLL_INTERVAL_MS      5000

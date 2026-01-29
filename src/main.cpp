@@ -427,6 +427,7 @@ void showMotionSensorData (void);
 void showMicData (void);
 void showGateSwitchData (void);
 void showSensorsData (void);
+void checkOccupationThresholds(void);
 void displaySensorsDataOnLCD (void);
 void updateRGBMode (void);
 void watchdog (void);                   // Additional features (develop later)
@@ -3775,4 +3776,20 @@ void sendDeviceHeartbeat (void) {
     }
 
     http.end();
+}
+
+void checkOccupationThresholds(void) {
+    // Auto-stop pump if water too high
+    if (waterLevelPercent >= waterHighThreshold && pumpTimer.active) {
+        Serial.println(F("[AUTO-OFF] Water level HIGH - stopping pump"));
+        stopPump();
+        sendLogToFirebase("actuator", "pump_auto_off", "water_level", (int)waterLevelPercent, "device", "occupation_high");
+    }
+    
+    // Auto-stop feeder if food too high
+    if (foodLevelPercent >= foodHighThreshold && isFeederRunning) {
+        Serial.println(F("[AUTO-OFF] Food level HIGH - stopping feeder"));
+        stopFeeder();
+        sendLogToFirebase("actuator", "feeder_auto_off", "food_level", (int)foodLevelPercent, "device", "occupation_high");
+    }
 }

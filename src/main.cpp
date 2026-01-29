@@ -204,7 +204,8 @@ bool rgbInitialized = false;
 
 bool isSendDataPeriodically = DEF_SEND_DATA_PERIODICALLY;
 bool isCommandPollPeriodically = DEF_POLL_CMD_PERIODICALLY;
-bool isFeederAndWaterContinuous = false;
+bool isFullFillingActive = false;
+bool isFanAutoControlActive = false;
 
 bool isCommandExecuted = false;
 
@@ -902,7 +903,7 @@ void checkButtonStateChange (void) {
 void checkRelayActivity (void) {
     unsigned long now = millis();
 
-    if (!isFeederAndWaterContinuous) {
+    if (!isFullFillingActive) {
         // Pump timer
         if (pumpTimer.active && (now - pumpTimer.startTime >= pumpTimer.duration)) {
             stopPump();
@@ -1056,9 +1057,9 @@ void checkSerialCommand (void) {
                 Serial.println(F("Uploading actuator state to Firebase..."));
                 break;
             case 'M':  // Toggle continuous mode
-                isFeederAndWaterContinuous = !isFeederAndWaterContinuous;
+                isFullFillingActive = !isFullFillingActive;
                 Serial.print(F("Continuous Mode: "));
-                Serial.println(isFeederAndWaterContinuous ? F("ON") : F("OFF"));
+                Serial.println(isFullFillingActive ? F("ON") : F("OFF"));
                 break;
             // case 'd':
             //     IPAddress serverIP;
@@ -3802,5 +3803,32 @@ void checkOccupationThresholds(void) {
         Serial.println(F("[AUTO-OFF] Food level HIGH - stopping feeder"));
         stopFeeder();
         sendLogToFirebase("actuator", "feeder_auto_off", "food_level", (int)foodLevelPercent, "device", "occupation_high");
+    }
+}
+
+void checkFanAutoControl (void) {
+    // Enable fan if temperature exceeds high threshold
+    if (ahtTemperature >= tempHighThreshold && !isFanAutoControlActive) {
+        Serial.print(F("[AUTO-FAN] Temperature HIGH ("));
+        Serial.print(ahtTemperature, 1);
+        Serial.print(F("°C >= "));
+        Serial.print(tempHighThreshold, 1);
+        Serial.println(F("°C) - enabling fan"));
+        enableFan();
+        isFanAutoControlActive = true;
+        sendLogToFirebase("actuator", "fan_auto_on", "temperature", (int)ahtTemperature, "device", "threshold_exceeded");
+    }
+    
+    // Disable fan if temperature drops 2°C below high threshold
+    // Hysteresis: turn off at (tempHighThreshold - 2)
+    if (ahtTemperature <= (tempHighThreshold - 2.0f) && isFanAutoControlActive) {
+        Serial.print(F("[AUTO-FAN] Temperature NORMAL ("));
+        Serial.print(ahtTemperature, 1);
+        Serial.print(F("°C <= "));
+        Serial.print(tempHighThreshold - 2.0f, 1);
+        Serial.println(F("°C) - disabling fan"));
+        disableFan();
+        isFanAutoControlActive = false;
+        sendLogToFirebase("actuator", "fan_auto_off", "temperature", (int)ahtTemperature, "device", "recovered");
     }
 }

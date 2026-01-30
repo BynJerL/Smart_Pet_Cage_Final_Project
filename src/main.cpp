@@ -263,6 +263,7 @@ float foodFullDistance = 27.0;      // cm
 float foodEmptyDistance = 30.0;     // cm
 float waterFullDistance = 27.0;     // cm
 float waterEmptyDistance = 30.0;    // cm
+float tempDecreaseTarget = 2.0f;
 
 bool tempHighAlertActive = false;
 bool tempLowAlertActive = false;
@@ -328,7 +329,7 @@ static float *ei_input_global = nullptr;
 
 uint16_t barkCount;
 uint16_t barkCountThreshold = 6;
-const unsigned long BARK_COUNT_RESET_PERIOD = 60000; // Clean per minute
+unsigned long BARK_COUNT_RESET_PERIOD = 60000; // Clean per minute
 
 // Default Value
 unsigned long feederEnableDuration = FEEDER_ACTIVE_DUR;
@@ -2169,7 +2170,7 @@ void updateSensorThresholdFromFirebase (void) {
         url += FIREBASE_AUTH;
     }
 
-    Serial.println(F("[Threshold] Fetching threshold from Firebase..."));
+    Serial.println(F("[Threshold] Fetching thresholds from Firebase..."));
     http.begin(fbClient, url);
     int httpCode = http.GET();
 
@@ -2183,26 +2184,176 @@ void updateSensorThresholdFromFirebase (void) {
     String payload = http.getString();
     http.end();
 
-    if (payload.length() < 10) {
-        Serial.println(F("[Threshold] Empty payload"));
+    if (payload.length() < 50) {
+        Serial.println(F("[Threshold] Payload too small or empty"));
         return;
     }
 
+    Serial.println(F("[Threshold] Successfully fetched. Parsing..."));
+
     // -------- Temperature --------
-    int tLow = payload.indexOf("\"temperature\"");
-    if (tLow != -1) {
-        tempLowThreshold  = payload.substring(payload.indexOf("\"low\":", tLow) + 6).toFloat();
-        tempHighThreshold = payload.substring(payload.indexOf("\"high\":", tLow) + 7).toFloat();
+    int tempPos = payload.indexOf("\"temperature\"");
+    if (tempPos != -1) {
+        int lowPos = payload.indexOf("\"low\":", tempPos);
+        int highPos = payload.indexOf("\"high\":", tempPos);
+        
+        if (lowPos != -1) {
+            String tempLowStr = payload.substring(lowPos + 6);
+            tempLowThreshold = tempLowStr.toFloat();
+        }
+        if (highPos != -1) {
+            String tempHighStr = payload.substring(highPos + 7);
+            tempHighThreshold = tempHighStr.toFloat();
+        }
+        Serial.print(F("[Threshold] Temperature: "));
+        Serial.print(tempLowThreshold, 1);
+        Serial.print(F("°C - "));
+        Serial.print(tempHighThreshold, 1);
+        Serial.println(F("°C"));
     }
 
     // -------- Humidity --------
-    int hLow = payload.indexOf("\"humidity\"");
-    if (hLow != -1) {
-        humLowThreshold  = payload.substring(payload.indexOf("\"low\":", hLow) + 6).toFloat();
-        humHighThreshold = payload.substring(payload.indexOf("\"high\":", hLow) + 7).toFloat();
+    int humPos = payload.indexOf("\"humidity\"");
+    if (humPos != -1) {
+        int lowPos = payload.indexOf("\"low\":", humPos);
+        int highPos = payload.indexOf("\"high\":", humPos);
+        
+        if (lowPos != -1) {
+            String humLowStr = payload.substring(lowPos + 6);
+            humLowThreshold = humLowStr.toFloat();
+        }
+        if (highPos != -1) {
+            String humHighStr = payload.substring(highPos + 7);
+            humHighThreshold = humHighStr.toFloat();
+        }
+        Serial.print(F("[Threshold] Humidity: "));
+        Serial.print(humLowThreshold, 1);
+        Serial.print(F("% - "));
+        Serial.print(humHighThreshold, 1);
+        Serial.println(F("%"));
     }
 
-    Serial.println(F("[Threshold] Updated:"));
+    // -------- Water Level --------
+    int waterPos = payload.indexOf("\"water_level\"");
+    if (waterPos != -1) {
+        int lowPos = payload.indexOf("\"low\":", waterPos);
+        int highPos = payload.indexOf("\"high\":", waterPos);
+        
+        if (lowPos != -1) {
+            String waterLowStr = payload.substring(lowPos + 6);
+            waterLowThreshold = waterLowStr.toFloat();
+        }
+        if (highPos != -1) {
+            String waterHighStr = payload.substring(highPos + 7);
+            waterHighThreshold = waterHighStr.toFloat();
+        }
+        Serial.print(F("[Threshold] Water Level: "));
+        Serial.print(waterLowThreshold, 1);
+        Serial.print(F("% - "));
+        Serial.print(waterHighThreshold, 1);
+        Serial.println(F("%"));
+    }
+
+    // -------- Food Level --------
+    int foodPos = payload.indexOf("\"food_level\"");
+    if (foodPos != -1) {
+        int lowPos = payload.indexOf("\"low\":", foodPos);
+        
+        if (lowPos != -1) {
+            String foodLowStr = payload.substring(lowPos + 6);
+            foodLowThreshold = foodLowStr.toFloat();
+        }
+        Serial.print(F("[Threshold] Food Level Low: "));
+        Serial.print(foodLowThreshold, 1);
+        Serial.println(F("%"));
+    }
+
+    // -------- Bark Thresholds --------
+    int barkPos = payload.indexOf("\"bark\"");
+    if (barkPos != -1) {
+        // Parse bark count threshold
+        int countPos = payload.indexOf("\"count\":", barkPos);
+        if (countPos != -1) {
+            String countStr = payload.substring(countPos + 8);
+            barkCountThreshold = (uint16_t)countStr.toInt();
+        }
+        
+        // Parse cooldown
+        int cooldownPos = payload.indexOf("\"cooldown_sec\":", barkPos);
+        if (cooldownPos != -1) {
+            String cooldownStr = payload.substring(cooldownPos + 15);
+            uint32_t barkCooldownSec = (uint32_t)cooldownStr.toInt();
+            BARK_COUNT_RESET_PERIOD = barkCooldownSec * 1000;
+            // You can store this if needed for alert suppression
+        }
+        
+        Serial.print(F("[Threshold] Bark: count="));
+        Serial.print(barkCountThreshold);
+        Serial.print(F(", reset="));
+        Serial.print(BARK_COUNT_RESET_PERIOD / 1000);
+        Serial.println(F("sec"));
+    }
+
+    // -------- Noise Thresholds (Microphone Level) --------
+    int noisePos = payload.indexOf("\"noise\"");
+    if (noisePos != -1) {
+        int highPctPos = payload.indexOf("\"high_pct\":", noisePos);
+        int minSecPos = payload.indexOf("\"min_sec\":", noisePos);
+        
+        if (highPctPos != -1) {
+            String noiseHighStr = payload.substring(highPctPos + 11);
+            uint8_t noiseHighPct = (uint8_t)noiseHighStr.toInt();
+            // Store for noise monitoring if needed
+            Serial.print(F("[Threshold] Noise High: "));
+            Serial.print(noiseHighPct);
+            Serial.println(F("%"));
+        }
+        
+        if (minSecPos != -1) {
+            String noiseMinStr = payload.substring(minSecPos + 10);
+            uint8_t noiseMinSec = (uint8_t)noiseMinStr.toInt();
+            // Store for noise monitoring duration if needed
+            Serial.print(F("[Threshold] Noise Min Duration: "));
+            Serial.print(noiseMinSec);
+            Serial.println(F("sec"));
+        }
+    }
+
+    // -------- Pressure Thresholds --------
+    int pressurePos = payload.indexOf("\"pressure\"");
+    if (pressurePos != -1) {
+        int lowPos = payload.indexOf("\"low\":", pressurePos);
+        int highPos = payload.indexOf("\"high\":", pressurePos);
+        
+        if (lowPos != -1) {
+            String pressureLowStr = payload.substring(lowPos + 6);
+            // Store pressure low threshold if you have a variable for it
+            Serial.print(F("[Threshold] Pressure Low: "));
+            Serial.print(pressureLowStr.toFloat(), 1);
+            Serial.println(F(" hPa"));
+        }
+        if (highPos != -1) {
+            String pressureHighStr = payload.substring(highPos + 7);
+            // Store pressure high threshold if you have a variable for it
+            Serial.print(F("[Threshold] Pressure High: "));
+            Serial.print(pressureHighStr.toFloat(), 1);
+            Serial.println(F(" hPa"));
+        }
+    }
+
+    // -------- Temperature Decrease (Hysteresis for Fan) --------
+    int tempDecreasePos = payload.indexOf("\"temperature_decrease\"");
+    if (tempDecreasePos != -1) {
+        String tempDecreaseStr = payload.substring(tempDecreasePos + 23);
+        float tempDecrease = tempDecreaseStr.toFloat();
+        tempDecreaseTarget = tempDecrease;
+        // This value (2°C) is already hardcoded in the fan logic
+        Serial.print(F("[Threshold] Temperature Decrease (Fan Hysteresis): "));
+        Serial.print(tempDecrease, 1);
+        Serial.println(F("°C"));
+    }
+
+    Serial.println(F("[Threshold] All thresholds updated successfully"));
     checkSensorThreshold();
 }
 
@@ -3867,11 +4018,11 @@ void checkFanAutoControl (void) {
     
     // Disable fan if temperature drops 2°C below high threshold
     // Hysteresis: turn off at (tempHighThreshold - 2)
-    if (ahtTemperature <= (tempHighThreshold - 2.0f) && isFanAutoControlActive) {
+    if (ahtTemperature <= (tempHighThreshold - tempDecreaseTarget) && isFanAutoControlActive) {
         Serial.print(F("[AUTO-FAN] Temperature NORMAL ("));
         Serial.print(ahtTemperature, 1);
         Serial.print(F("°C <= "));
-        Serial.print(tempHighThreshold - 2.0f, 1);
+        Serial.print(tempHighThreshold - tempDecreaseTarget, 1);
         Serial.println(F("°C) - disabling fan"));
         disableFan();
         isFanAutoControlActive = false;

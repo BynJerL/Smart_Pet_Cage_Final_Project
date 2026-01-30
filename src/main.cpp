@@ -225,6 +225,8 @@ unsigned long lastUIUpdate = 0;
 unsigned long lastDataPatch = 0;
 unsigned long lastCommandPoll = 0;
 unsigned long lastHeartbeat = 0;
+unsigned long lastBarkCountReset = 0;
+unsigned long lastBarkDetectionTime = 0;
 
 byte actuatorState = 0b00000111; // Only use 3 bit for now
 byte lastActuatorState = 0b00000111; // Only use 3 bit for now
@@ -270,6 +272,7 @@ bool motionAlertActive = false;
 bool foodLowAlertActive = false;
 bool waterLowAlertActive = false;
 bool barkAlertActive = false;
+bool abnormalBehaviorAlertActive = false;
 
 const char* menuNames[MENU_COUNT] = {
     "Show Data",
@@ -322,6 +325,10 @@ const float BARK_CONF_THRESHOLD = 0.65f; // bark detection threshold
 // ---- audio buffer ----
 static int16_t audio_buffer[SAMPLE_LENGTH]; // 20000 int16_t
 static float *ei_input_global = nullptr;
+
+uint16_t barkCount;
+uint16_t barkCountThreshold = 6;
+const unsigned long BARK_COUNT_RESET_PERIOD = 60000; // Clean per minute
 
 // Default Value
 unsigned long feederEnableDuration = FEEDER_ACTIVE_DUR;
@@ -519,6 +526,7 @@ void displayMicrophoneNoisePage();
 void displayBarkPage();
 
 void getConfiguration (void);
+void updateBarkCounter (void);
 
 void setup () {
     Serial.begin(115200);
@@ -1918,6 +1926,8 @@ void checkAlerts (void) {
         sendLogToFirebase("alert", "water_level_normal", "water_level", (int)waterLevelPercent, "device", "recovered");
     }
 
+    updateBarkCounter();
+
     if (mic_is_bark_detected()) {
         if (!barkAlertActive) {
             Serial.println(F("[ALERT] Barking detected!"));
@@ -1926,6 +1936,23 @@ void checkAlerts (void) {
         }
     } else {
         barkAlertActive = false;
+    }
+
+    if (barkCount >= barkCountThreshold) {
+        if (!abnormalBehaviorAlertActive) {
+            Serial.print(F("[ALERT] ABNORMAL BEHAVIOR DETECTED! Bark count: "));
+            Serial.print(barkCount);
+            Serial.print(F(" exceeds threshold: "));
+            Serial.println(barkCountThreshold);
+            abnormalBehaviorAlertActive = true;
+            sendLogToFirebase("alert", "abnormal_behavior", "microphone", barkCount, "device", "excessive_barking");
+        }
+    } else if (abnormalBehaviorAlertActive && barkCount < barkCountThreshold) {
+        // Only clear alert when bark count drops below threshold
+        abnormalBehaviorAlertActive = false;
+        Serial.print(F("[ALERT] Abnormal behavior cleared. Current bark count: "));
+        Serial.println(barkCount);
+        sendLogToFirebase("alert", "abnormal_behavior_cleared", "microphone", barkCount, "device", "recovered");
     }
 }
 
@@ -3924,4 +3951,31 @@ void getConfiguration (void) {
     }
 
     Serial.println(F("[Config] Configuration loaded successfully"));
+}
+
+void updateBarkCounter(void) {    
+    // Reset bark counter every BARK_COUNT_RESET_PERIOD (60 seconds)
+    if (millis() - lastBarkCountReset >= BARK_COUNT_RESET_PERIOD) {
+        if (barkCount > 0) {
+            Serial.print(F("[BARK] Counter reset. Barks in last minute: "));
+            Serial.println(barkCount);
+        }
+        barkCount = 0;
+        lastBarkCountReset = millis();
+    }
+    
+    // Count barks: increment counter only once per bark event
+    if (mic_is_bark_detected()) {
+        // Only count if at least 1 second has passed since last detection
+        if (millis() - lastBarkDetectionTime >= 1000) {
+            barkCount++;
+            lastBarkDetectionTime = millis();
+            
+            Serial.print(F("[BARK] Bark #"));
+            Serial.print(barkCount);
+            Serial.print(F(" detected. Confidence: "));
+            Serial.print(mic_get_bark_confidence(), 2);
+            Serial.println(F("%"));
+        }
+    }
 }

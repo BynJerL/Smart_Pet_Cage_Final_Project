@@ -327,6 +327,9 @@ static float *ei_input_global = nullptr;
 unsigned long feederEnableDuration = FEEDER_ACTIVE_DUR;
 unsigned long pumpEnableDuration = PUMP_ACTIVE_DUR;
 
+// System Config (Firebase)
+String petName = "My Pet";
+
 void initializeButtons (void);
 void initializeRelays (void);
 void initializeFeeder (void); 
@@ -515,6 +518,8 @@ void readMicValuesExample();
 void displayMicrophoneNoisePage();
 void displayBarkPage();
 
+void getConfiguration (void);
+
 void setup () {
     Serial.begin(115200);
     initializeButtons();
@@ -560,6 +565,7 @@ void setup () {
     checkAndSyncRTCOnBoot();
     syncSchedule();
     syncSensorThreshold();
+    getConfiguration();
 
     Serial.println(F("Setup completed."));
     Serial.println(F("Try to tap the buttons or send \'i\' to check available commands."));
@@ -2330,6 +2336,9 @@ void executeCommand (const String& action, const String& target) {
         if (target == "threshold") {
             updateSensorThresholdFromFirebase();
         }
+        if (target == "config") {
+            getConfiguration();
+        }
         return;
     }
 
@@ -3841,4 +3850,78 @@ void checkFanAutoControl (void) {
         isFanAutoControlActive = false;
         sendLogToFirebase("actuator", "fan_auto_off", "temperature", (int)ahtTemperature, "device", "recovered");
     }
+}
+
+void getConfiguration (void) {
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println(F("[System] Config data cannot be loaded. Using defaults..."));
+        return;
+    }
+
+    fbClient.setInsecure();
+
+    String url = String(FIREBASE_URL) + "/config.json";
+    url = withAuth(url);
+
+    Serial.println(F("[Config] Fetching configuration from Firebase..."));
+    
+    http.begin(fbClient, url);
+    int httpCode = http.GET();
+
+    if (httpCode != HTTP_CODE_OK) {
+        Serial.print(F("[Config] HTTP error: "));
+        Serial.println(httpCode);
+        http.end();
+        return;
+    }
+
+    String payload = http.getString();
+    http.end();
+
+    if (payload.length() < 10) {
+        Serial.println(F("[Config] Payload too short or empty"));
+        return;
+    }
+
+    Serial.print(F("[Config] Received payload: "));
+    Serial.println(payload);
+
+    // -------- Parse fan_auto --------
+    int fanAutoPos = payload.indexOf("\"fan_auto\"");
+    if (fanAutoPos != -1) {
+        int colonPos = payload.indexOf(":", fanAutoPos);
+        String fanAutoValue = payload.substring(colonPos + 1);
+        isFanAutoMode = (fanAutoValue.indexOf("true") != -1);
+        Serial.print(F("[Config] fan_auto: "));
+        Serial.println(isFanAutoMode ? F("true") : F("false"));
+    }
+
+    // -------- Parse full_filling --------
+    int fullFillingPos = payload.indexOf("\"full_filling\"");
+    if (fullFillingPos != -1) {
+        int colonPos = payload.indexOf(":", fullFillingPos);
+        String fullFillingValue = payload.substring(colonPos + 1);
+        isFullFillingActive = (fullFillingValue.indexOf("true") != -1);
+        Serial.print(F("[Config] full_filling: "));
+        Serial.println(isFullFillingActive ? F("true") : F("false"));
+    }
+
+    // -------- Parse pet_name --------
+    int petNamePos = payload.indexOf("\"pet_name\"");
+    if (petNamePos != -1) {
+        int colonPos = payload.indexOf(":", petNamePos);
+        int q1 = payload.indexOf("\"", colonPos + 1);
+        int q2 = payload.indexOf("\"", q1 + 1);
+        
+        if (q1 != -1 && q2 != -1) {
+            String extracted = payload.substring(q1 + 1, q2);
+            if (extracted.length() > 0 && extracted.length() <= 32) {
+                petName = extracted;
+                Serial.print(F("[Config] pet_name: "));
+                Serial.println(petName);
+            }
+        }
+    }
+
+    Serial.println(F("[Config] Configuration loaded successfully"));
 }

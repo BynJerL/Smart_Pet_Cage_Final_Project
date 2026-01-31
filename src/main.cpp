@@ -338,6 +338,17 @@ unsigned long pumpEnableDuration = PUMP_ACTIVE_DUR;
 // System Config (Firebase)
 String petName = "My Pet";
 
+// --- Stability-based full-filling (continuous mode) support ---
+float waterWindowStartValue = -1.0f;
+unsigned long waterWindowStartTime = 0;
+
+float foodWindowStartValue = -1.0f;
+unsigned long foodWindowStartTime = 0;
+
+// Configurable parameters (defaults)
+unsigned long fillingStabilityWindowMs = 8000;   // 8s default (recommend 5-10s)
+float fillingStabilityTolerancePct = 5.0f;       // 5% default (recommend 5-10%)
+
 void initializeButtons (void);
 void initializeRelays (void);
 void initializeFeeder (void); 
@@ -529,6 +540,8 @@ void displayBarkPage();
 void getConfiguration (void);
 void updateBarkCounter (void);
 
+void checkOccupationStability (void);
+
 void setup () {
     Serial.begin(115200);
     initializeButtons();
@@ -592,6 +605,7 @@ void loop () {
     updateSensorDataSlideshow(); 
     sendDeviceHeartbeat();
     checkOccupationThresholds();
+    checkOccupationStability();
     checkFanAutoControl();
 
     if (isConfigMode) {
@@ -4128,5 +4142,83 @@ void updateBarkCounter(void) {
             Serial.print(mic_get_bark_confidence(), 2);
             Serial.println(F("%"));
         }
+    }
+}
+
+void checkOccupationStability(void) {
+    unsigned long now = millis();
+
+    // Only apply stability checks if "full-filling" / continuous mode is enabled
+    if (!isFullFillingActive) return;
+
+    // --- WATER STABILITY CHECK ---
+    if (pumpTimer.active) {
+        float current = waterLevelPercent; // 0..100
+
+        if (waterWindowStartTime == 0) {
+            waterWindowStartValue = current;
+            waterWindowStartTime = now;
+        } else {
+            float delta = fabs(current - waterWindowStartValue);
+            if (delta >= fillingStabilityTolerancePct) {
+                // Significant change -> restart observation window
+                waterWindowStartValue = current;
+                waterWindowStartTime = now;
+            } else {
+                // Not changed much; if stable for the window, stop pump
+                if (now - waterWindowStartTime >= fillingStabilityWindowMs) {
+                    Serial.print(F("[STABILITY] Water level stable (delta "));
+                    Serial.print(delta, 2);
+                    Serial.print(F("%) for "));
+                    Serial.print(fillingStabilityWindowMs / 1000);
+                    Serial.println(F("s). Stopping pump."));
+                    stopPump();
+                    sendActuatorStateToFirebase();
+                    sendLogToFirebase("actuator", "pump_stop_stable", "water_level", (int)current, "device", "stability_stop");
+                    // reset window to avoid repeated triggers
+                    waterWindowStartTime = 0;
+                    waterWindowStartValue = -1.0f;
+                }
+            }
+        }
+    } else {
+        // Reset if pump not active
+        waterWindowStartTime = 0;
+        waterWindowStartValue = -1.0f;
+    }
+
+    // --- FOOD (FEEDER) STABILITY CHECK ---
+    if (isFeederRunning || feederTimer.active) {
+        float current = foodLevelPercent; // 0..100
+
+        if (foodWindowStartTime == 0) {
+            foodWindowStartValue = current;
+            foodWindowStartTime = now;
+        } else {
+            float delta = fabs(current - foodWindowStartValue);
+            if (delta >= fillingStabilityTolerancePct) {
+                // Significant change -> restart observation window
+                foodWindowStartValue = current;
+                foodWindowStartTime = now;
+            } else {
+                if (now - foodWindowStartTime >= fillingStabilityWindowMs) {
+                    Serial.print(F("[STABILITY] Food level stable (delta "));
+                    Serial.print(delta, 2);
+                    Serial.print(F("%) for "));
+                    Serial.print(fillingStabilityWindowMs / 1000);
+                    Serial.println(F("s). Stopping feeder."));
+                    stopFeeder();
+                    sendActuatorStateToFirebase();
+                    sendLogToFirebase("actuator", "feeder_stop_stable", "food_level", (int)current, "device", "stability_stop");
+                    // reset window
+                    foodWindowStartTime = 0;
+                    foodWindowStartValue = -1.0f;
+                }
+            }
+        }
+    } else {
+        // Reset if feeder not active
+        foodWindowStartTime = 0;
+        foodWindowStartValue = -1.0f;
     }
 }
